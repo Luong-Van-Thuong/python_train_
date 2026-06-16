@@ -1,0 +1,6 @@
+path: /mnt/d/projects_/cong_ty/python_/train/data
+train: images/train
+val: images/val
+
+names:
+  0: '1'
