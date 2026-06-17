@@ -41,7 +41,8 @@ from tqdm import tqdm
 # --------------------------------------------------------------------------- #
 # Chạy trong WSL2: ổ D:\ của Windows map sang /mnt/d/
 DEFAULT_SRC = "/mnt/d/Images_/SIBV/A26/260615_0/ng_"
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/dataset_seg"
+DEFAULT_OK = "/mnt/d/Images_/SIBV/A26/260615_0/ok_"  # ảnh OK, KHÔNG có .json
+DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/data"
 
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
@@ -97,10 +98,27 @@ def collect_pairs(src_dir):
     return pairs
 
 
+def collect_ok_images(ok_dir):
+    """Thu thập ảnh OK (không có defect -> không có .json). Trả về list (img_path, None)."""
+    if not ok_dir:
+        return []
+    src = Path(ok_dir)
+    if not src.exists():
+        print(f"[CẢNH BÁO] Không tìm thấy thư mục ảnh OK: {ok_dir}, bỏ qua.")
+        return []
+    pairs = []
+    for img_path in sorted(src.iterdir()):
+        if img_path.suffix.lower() in IMG_EXTS:
+            pairs.append((img_path, None))  # None = không có nhãn (ảnh nền sạch)
+    return pairs
+
+
 def build_class_map(pairs):
     """Quét toàn bộ json -> danh sách class sắp xếp ổn định -> {label: id}."""
     labels = set()
     for _, json_path in pairs:
+        if json_path is None:  # ảnh OK, không có nhãn
+            continue
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         for sh in data.get("shapes", []):
@@ -141,8 +159,11 @@ def clip_polygon_to_tile(poly, tile_box):
 
 def process_image(img_path, json_path, class_map, out_img_dir, out_lbl_dir,
                   tile, overlap, min_area_frac, min_area_px, bg_ratio,
-                  img_ext, rng):
-    """Cắt 1 ảnh thành tile, ghi tile + nhãn. Trả về dict thống kê."""
+                  img_ext, rng, ok_tiles_per_img=-1):
+    """Cắt 1 ảnh thành tile, ghi tile + nhãn. Trả về dict thống kê.
+
+    json_path = None -> ảnh OK (không có defect): mọi tile là nền, ghi .txt rỗng.
+    """
     img = imread_unicode(img_path)
     if img is None:
         print(f"[LỖI] Không đọc được ảnh {img_path.name}, bỏ qua.")
@@ -150,8 +171,11 @@ def process_image(img_path, json_path, class_map, out_img_dir, out_lbl_dir,
 
     H, W = img.shape[:2]
 
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    if json_path is None:
+        data = {"shapes": []}  # ảnh OK: không có annotation
+    else:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
     # Chuẩn bị danh sách (class_id, shapely Polygon, area gốc)
     anns = []
@@ -203,7 +227,12 @@ def process_image(img_path, json_path, class_map, out_img_dir, out_lbl_dir,
                 neg_tiles.append((x0, y0, lines))
 
     # Cân bằng tile nền
-    if bg_ratio >= 0:
+    if json_path is None:
+        # Ảnh OK: lấy mẫu theo ok_tiles_per_img (-1 = giữ tất cả)
+        if ok_tiles_per_img >= 0:
+            rng.shuffle(neg_tiles)
+            neg_tiles = neg_tiles[:ok_tiles_per_img]
+    elif bg_ratio >= 0:
         keep_neg = int(round(len(pos_tiles) * bg_ratio))
         rng.shuffle(neg_tiles)
         neg_tiles = neg_tiles[:keep_neg]
@@ -238,7 +267,11 @@ def process_image(img_path, json_path, class_map, out_img_dir, out_lbl_dir,
 # --------------------------------------------------------------------------- #
 def main():
     ap = argparse.ArgumentParser(description="Cắt tile + convert labelme -> YOLO-seg")
-    ap.add_argument("--src", default=DEFAULT_SRC, help="Thư mục chứa ảnh + json labelme")
+    ap.add_argument("--src", default=DEFAULT_SRC, help="Thư mục chứa ảnh + json labelme (ảnh NG)")
+    ap.add_argument("--ok-src", default=DEFAULT_OK,
+                    help="Thư mục ảnh OK (không có json). '' để bỏ qua")
+    ap.add_argument("--ok-tiles-per-img", type=int, default=-1,
+                    help="Số tile nền lấy ngẫu nhiên mỗi ảnh OK. -1 = giữ tất cả")
     ap.add_argument("--out", default=DEFAULT_OUT, help="Thư mục dataset đầu ra")
     ap.add_argument("--tile", type=int, default=640, help="Kích thước tile (px)")
     ap.add_argument("--overlap", type=float, default=0.20, help="Tỉ lệ chồng lấn 0..1")
@@ -260,20 +293,32 @@ def main():
     if not pairs:
         print(f"[LỖI] Không tìm thấy cặp ảnh+json nào trong {args.src}")
         return
-    print(f"Tìm thấy {len(pairs)} cặp ảnh+nhãn.")
+    print(f"Tìm thấy {len(pairs)} cặp ảnh+nhãn (NG).")
+
+    ok_pairs = collect_ok_images(args.ok_src)
+    print(f"Tìm thấy {len(ok_pairs)} ảnh OK (nền sạch).")
 
     class_map, classes = build_class_map(pairs)
     print("Class map (id ổn định theo alphabet):")
     for name, i in class_map.items():
         print(f"   {i}: {name}")
 
-    # Chia train/val theo ẢNH GỐC
-    pairs_shuffled = pairs[:]
-    rng.shuffle(pairs_shuffled)
-    n_val = max(1, int(round(len(pairs_shuffled) * args.val_ratio)))
-    val_pairs = pairs_shuffled[:n_val]
-    train_pairs = pairs_shuffled[n_val:]
-    print(f"Chia: train={len(train_pairs)} ảnh, val={len(val_pairs)} ảnh")
+    # Chia train/val theo ẢNH GỐC. Chia riêng NG và OK rồi gộp, để cả train và
+    # val đều có tỉ lệ ảnh OK hợp lý (không bị dồn hết OK về một split).
+    def split_pairs(plist):
+        shuffled = plist[:]
+        rng.shuffle(shuffled)
+        if not shuffled:
+            return [], []
+        n_val = max(1, int(round(len(shuffled) * args.val_ratio)))
+        return shuffled[n_val:], shuffled[:n_val]  # train, val
+
+    train_ng, val_ng = split_pairs(pairs)
+    train_ok, val_ok = split_pairs(ok_pairs)
+    train_pairs = train_ng + train_ok
+    val_pairs = val_ng + val_ok
+    print(f"Chia: train={len(train_pairs)} ảnh (NG={len(train_ng)}, OK={len(train_ok)}), "
+          f"val={len(val_pairs)} ảnh (NG={len(val_ng)}, OK={len(val_ok)})")
 
     out = Path(args.out)
     dirs = {}
@@ -294,6 +339,7 @@ def main():
                 tile=args.tile, overlap=args.overlap,
                 min_area_frac=args.min_area_frac, min_area_px=args.min_area_px,
                 bg_ratio=args.bg_ratio, img_ext=args.img_ext, rng=rng,
+                ok_tiles_per_img=args.ok_tiles_per_img,
             )
             for k in totals[split]:
                 totals[split][k] += st[k]

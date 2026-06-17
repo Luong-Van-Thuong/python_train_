@@ -21,7 +21,7 @@ Lưu ý về defect NHỎ:
 import argparse
 from ultralytics import YOLO
 
-DEFAULT_DATA = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/dataset_seg/data.yaml"
+DEFAULT_DATA = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data/data.yaml"
 DEFAULT_PROJECT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/result"
 
 
