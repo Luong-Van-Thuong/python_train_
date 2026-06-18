@@ -42,7 +42,7 @@ from tqdm import tqdm
 # Chạy trong WSL2: ổ D:\ của Windows map sang /mnt/d/
 DEFAULT_SRC = "/mnt/d/Images_/SIBV/A26/260615_0/ng_"
 DEFAULT_OK = "/mnt/d/Images_/SIBV/A26/260615_0/ok_"  # ảnh OK, KHÔNG có .json
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/data"
+DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/sibv/a26/data"
 
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
@@ -276,7 +276,7 @@ def main():
     ap.add_argument("--tile", type=int, default=640, help="Kích thước tile (px)")
     ap.add_argument("--overlap", type=float, default=0.20, help="Tỉ lệ chồng lấn 0..1")
     ap.add_argument("--val-ratio", type=float, default=0.2, help="Tỉ lệ ảnh dùng cho val")
-    ap.add_argument("--bg-ratio", type=float, default=1.0,
+    ap.add_argument("--bg-ratio", type=float, default=5.0,
                     help="Số tile nền giữ lại / số tile có lỗi (mỗi ảnh). -1 = giữ tất cả")
     ap.add_argument("--min-area-frac", type=float, default=0.10,
                     help="Giữ mảnh clip nếu diện tích >= frac * diện tích gốc")
