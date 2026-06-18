@@ -156,3 +156,7 @@ sibv/
 *.engine
 VisionProject/
 runs/
+
+# Dataset multitask sinh bởi chia_data_seg_obd.py (seg/obd) — không commit
+data_multitask/
+**/data_multitask/
