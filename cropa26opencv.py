@@ -9,10 +9,11 @@ Cắt (crop) từng linh kiện ra khỏi ảnh khay A26 bằng OpenCV thuần (
      xếp theo lưới 2 hàng x 2 cột.
   2. CHIA ẢNH THÀNH 4 Ô (2x2) trước -> mỗi ô chắc chắn chứa đúng 1 linh kiện.
      (Cách này luôn ra đủ 4 linh kiện, kể cả khi 2 linh kiện sát/dính nhau.)
-  3. Trong từng ô: con hàng SÁNG hơn nền -> tách sáng/tối bằng ngưỡng (threshold)
-     thành blob TRẮNG, lấy blob to nhất rồi tính TÂM của nó.
+  3. Trong từng ô: tìm TÂM con hàng bằng cách dò 'hốc tối ở giữa' (cửa sổ cảm
+     biến) - một vùng tối nhỏ gọn nằm gần giữa ô. Cách này KHÔNG bị các cầu nối
+     kim loại sáng làm lệch tâm (ổn định cho mọi loại hàng).
   4. Vì con hàng cố định nên có kích thước cố định: cắt 1 hình chữ nhật ĐÚNG
-     kích thước PART_WIDTH x PART_HEIGHT quanh tâm blob -> tránh nhiễu làm méo
+     kích thước PART_WIDTH x PART_HEIGHT quanh tâm -> tránh nhiễu làm méo
      kích thước, mọi ảnh cắt ra đều bằng nhau.
      (Nếu ô nào dò hỏng thì lấy tâm ô làm tâm để không bị sót.)
 
@@ -38,10 +39,10 @@ import numpy as np
 # (Nếu chạy trên Windows thuần thì đổi lại thành r"D:/Images_/SIBV/...")
 #
 # Thư mục chứa TẤT CẢ ảnh cần cắt
-INPUT_DIR  = "/mnt/d/Images_/SIBV/A26/img_train/ng"
+INPUT_DIR  = "/mnt/d/Images_/SIBV/A26/img_train/OK"
 
 # Thư mục để lưu ảnh đã cắt (tự tạo nếu chưa có)
-OUTPUT_DIR = "/mnt/d/Images_/SIBV/A26/img_train/ng_crop"
+OUTPUT_DIR = "/mnt/d/Images_/SIBV/A26/img_train/OK_crop"
 
 # Lưới linh kiện trên mỗi ảnh: 2 hàng x 2 cột = 4 linh kiện
 GRID_ROWS = 2
@@ -49,16 +50,19 @@ GRID_COLS = 2
 EXPECTED_COUNT = GRID_ROWS * GRID_COLS
 
 # ---- KÍCH THƯỚC CỐ ĐỊNH CỦA CON HÀNG (pixel) ----
-# Con hàng cố định nên có kích thước cố định: ta dò TÂM của blob trắng rồi cắt
+# Con hàng cố định nên có kích thước cố định: ta dò TÂM con hàng rồi cắt
 # 1 hình chữ nhật ĐÚNG kích thước này quanh tâm. Nhờ vậy mọi khung cắt đều
 # bằng nhau, KHÔNG bị nhiễu làm to/nhỏ thất thường.
 # >>> Đổi 2 số này khi dùng cho loại hàng / bài toán khác. <<<
 PART_WIDTH  = 2200   # chiều rộng (ngang) con hàng
 PART_HEIGHT = 2200   # chiều cao  (dọc)  con hàng
 
-# Trong mỗi ô, blob trắng tìm được phải chiếm ít nhất chừng này diện tích ô
-# thì mới coi là tìm thấy con hàng. Nhỏ hơn -> coi như dò hỏng -> lấy tâm = tâm ô.
-MIN_FILL_RATIO = 0.20
+# ---- CÁCH TÌM TÂM CON HÀNG: dò "hốc tối ở giữa" (cửa sổ cảm biến) ----
+# Hốc này tối, nhỏ gọn, nằm giữa con hàng -> dùng làm tâm rất ổn định, KHÔNG bị
+# các cầu nối kim loại sáng làm lệch (như khi lấy trọng tâm cả vùng sáng).
+DARK_THRESH = 50          # pixel xám TỐI hơn ngưỡng này coi là "tối" (0..255)
+CAVITY_MIN_RATIO = 0.012  # hốc phải to hơn 1.2% diện tích ô (bỏ đốm nhỏ)
+CAVITY_MAX_RATIO = 0.20   # và nhỏ hơn 20% diện tích ô (bỏ mảng tối lớn)
 
 
 # Đuôi file ảnh đầu vào và định dạng lưu ra
@@ -74,44 +78,49 @@ SHOW_STEPS = True
 # ============================================================
 # 2) HÀM TÌM CÁC LINH KIỆN TRONG 1 ẢNH
 # ============================================================
-def _tim_tam_blob_trong_o(cell):
+def _mask_hoc_toi(cell):
+    """Tạo mask vùng TỐI (hốc cảm biến ở giữa con hàng) cho 1 ô."""
+    gray = cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (25, 25), 0)
+    # Pixel tối hơn DARK_THRESH -> trắng (255) trong mask
+    _, dark = cv2.threshold(blur, DARK_THRESH, 255, cv2.THRESH_BINARY_INV)
+    # Xoá các đốm tối nhỏ li ti cho sạch
+    dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((35, 35), np.uint8))
+    return dark
+
+
+def _tim_tam_con_hang(cell):
     """
-    Trong 1 ô (cell): tách lấy blob trắng (con hàng) rồi tính TÂM của nó.
-    Trả về (cx, cy) theo toạ độ RIÊNG của ô, hoặc None nếu dò hỏng.
+    Tìm TÂM con hàng trong 1 ô bằng cách dò 'hốc tối ở giữa' (cửa sổ cảm biến):
+    một vùng tối, nhỏ gọn, nằm gần giữa ô. Cách này ổn định cho mọi loại hàng
+    (kể cả khi xung quanh có cầu nối kim loại sáng).
+    Trả về (cx, cy) theo toạ độ RIÊNG của ô, hoặc None nếu không tìm thấy.
     """
     ch, cw = cell.shape[:2]
+    cell_area = cw * ch
 
-    # Tách sáng/tối tự động bằng Otsu (con hàng sáng hơn nền -> thành màu trắng)
-    gray = cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (15, 15), 0)
-    _, mask = cv2.threshold(blur, 0, 255,
-                            cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    # Dọn dẹp: xoá đốm trắng nhỏ (OPEN) rồi lấp lỗ bên trong (CLOSE)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  np.ones((25, 25), np.uint8))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((81, 81), np.uint8))
-
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+    dark = _mask_hoc_toi(cell)
+    contours, _ = cv2.findContours(dark, cv2.RETR_EXTERNAL,
                                    cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return None
 
-    # Lấy blob trắng TO NHẤT trong ô = con hàng của ô đó
-    c = max(contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(c)
-
-    # Nếu blob quá nhỏ so với ô -> coi như dò hỏng
-    if (w * h) < MIN_FILL_RATIO * (cw * ch):
-        return None
-
-    # TÂM của blob = trọng tâm (centroid). Ổn định hơn tâm khung bao khi blob
-    # có "đuôi" dính ra (vd cầu nối kim loại) -> không bị lệch nhiều.
-    M = cv2.moments(c)
-    if M["m00"] == 0:
-        return None
-    cx = int(M["m10"] / M["m00"])
-    cy = int(M["m01"] / M["m00"])
-    return (cx, cy)
+    best = None
+    best_dist = None
+    for c in contours:
+        area = cv2.contourArea(c)
+        # Hốc phải có diện tích vừa phải (không quá nhỏ, không quá lớn)
+        if area < CAVITY_MIN_RATIO * cell_area or area > CAVITY_MAX_RATIO * cell_area:
+            continue
+        x, y, w, h = cv2.boundingRect(c)
+        aspect = w / float(h)
+        if aspect < 0.4 or aspect > 2.5:      # bỏ vệt dài (không phải hốc)
+            continue
+        cx, cy = x + w // 2, y + h // 2
+        # Con hàng nằm gần giữa ô -> chọn hốc GẦN TÂM Ô nhất
+        dist = (cx - cw // 2) ** 2 + (cy - ch // 2) ** 2
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best = (cx, cy)
+    return best
 
 
 def _khung_co_dinh(tam_x, tam_y, W, H, w_img, h_img):
@@ -144,9 +153,9 @@ def tim_cac_linh_kien(img):
             y0, x0 = r * ch, c * cw            # góc trên-trái của ô
             cell = img[y0:y0 + ch, x0:x0 + cw]
 
-            tam = _tim_tam_blob_trong_o(cell)
+            tam = _tim_tam_con_hang(cell)
             if tam is not None:
-                cx, cy = tam                   # tâm blob (toạ độ trong ô)
+                cx, cy = tam                   # tâm con hàng (toạ độ trong ô)
             else:
                 cx, cy = cw // 2, ch // 2      # dò hỏng -> lấy tâm ô làm tâm
 
@@ -163,8 +172,8 @@ def tim_cac_linh_kien(img):
 def luu_cac_buoc(img, boxes, ten_file, steps_dir):
     """
     Ghép 5 ảnh thành 1 bảng để thấy code biến đổi thế nào, rồi LƯU RA FILE:
-        1. Ảnh gốc      2. Ảnh xám      3. Mask Otsu (tách sáng/tối)
-        4. Mask sau khi làm sạch (morphology)      5. Kết quả (khung đỏ)
+        1. Ảnh gốc   2. Ảnh xám   3. Mask vùng TỐI (hốc cảm biến)
+        4. Tâm dò được (chấm đỏ)  5. Kết quả khung cắt (khung đỏ)
 
     Dùng lưu-ra-file thay cho cv2.imshow vì cửa sổ GUI trong WSL hay lỗi
     "Qt platform plugin xcb". Mở file trong thư mục _steps bằng Windows để xem.
@@ -172,19 +181,18 @@ def luu_cac_buoc(img, boxes, ten_file, steps_dir):
     h_img, w_img = img.shape[:2]
     ch, cw = h_img // GRID_ROWS, w_img // GRID_COLS
 
-    # Dựng lại mask Otsu và mask-sau-làm-sạch theo TỪNG Ô (đúng như lúc dò)
-    gray_full  = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    otsu_full  = np.zeros((h_img, w_img), np.uint8)
-    morph_full = np.zeros((h_img, w_img), np.uint8)
+    # Dựng lại mask vùng TỐI theo TỪNG Ô + chấm tâm dò được (đúng như lúc dò)
+    gray_full = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    dark_full = np.zeros((h_img, w_img), np.uint8)
+    tam_full = img.copy()
     for r in range(GRID_ROWS):
         for c in range(GRID_COLS):
             y0, x0 = r * ch, c * cw
-            g = cv2.GaussianBlur(gray_full[y0:y0 + ch, x0:x0 + cw], (15, 15), 0)
-            _, m = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            otsu_full[y0:y0 + ch, x0:x0 + cw] = m
-            m2 = cv2.morphologyEx(m,  cv2.MORPH_OPEN,  np.ones((25, 25), np.uint8))
-            m2 = cv2.morphologyEx(m2, cv2.MORPH_CLOSE, np.ones((81, 81), np.uint8))
-            morph_full[y0:y0 + ch, x0:x0 + cw] = m2
+            cell = img[y0:y0 + ch, x0:x0 + cw]
+            dark_full[y0:y0 + ch, x0:x0 + cw] = _mask_hoc_toi(cell)
+            tam = _tim_tam_con_hang(cell)
+            cx, cy = tam if tam is not None else (cw // 2, ch // 2)
+            cv2.circle(tam_full, (x0 + cx, y0 + cy), 40, (0, 0, 255), -1)
 
     # Ảnh kết quả: vẽ khung đỏ lên ảnh gốc
     ket_qua = img.copy()
@@ -203,8 +211,8 @@ def luu_cac_buoc(img, boxes, ten_file, steps_dir):
     o_trong = np.zeros((450, 450, 3), np.uint8)   # ô trống cho đủ lưới 2x3
     hang1 = np.hstack([panel(img, "1. Goc", True),
                        panel(gray_full, "2. Xam"),
-                       panel(otsu_full, "3. Otsu")])
-    hang2 = np.hstack([panel(morph_full, "4. Lam sach"),
+                       panel(dark_full, "3. Vung toi")])
+    hang2 = np.hstack([panel(tam_full, "4. Tam do duoc", True),
                        panel(ket_qua, "5. Ket qua", True),
                        o_trong])
     bang = np.vstack([hang1, hang2])
