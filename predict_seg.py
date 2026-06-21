@@ -16,10 +16,10 @@ from sahi.predict import get_sliced_prediction
 # CONFIGURATION ZONE - ÔNG THAY ĐỔI ĐƯỜNG DẪN TEST TẠI ĐÂY
 # ==============================================================================
 # Biến chứa đường dẫn ảnh test riêng, dễ dàng thay đổi khi debug trong WSL2
-DEBUG_SOURCE = "/mnt/d/Images_/SIBV/A26/260615_0/tesst/Image__2026-06-16__11-50-50_obj_0.bmp"
+DEBUG_SOURCE = "/mnt/d/Images_/SIBV/A26/260615_0/tesst/Image__2026-06-15__11-23-31_obj_0.bmp"
 
-DEFAULT_WEIGHTS = "sibv/a26/result/defect_seg/weights/best.pt"
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/predict_out/folder_data_AI_tra_ve"
+DEFAULT_WEIGHTS = "sibv/a26/results/defect_seg2/weights/best.pt"
+DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/predict_out/folder_data_AI_tra_ve"
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 # ==============================================================================
 
@@ -55,7 +55,7 @@ def main():
     ap.add_argument("--out", default=DEFAULT_OUT, help="Thư mục xuất kết quả")
     ap.add_argument("--tile", type=int, default=640)
     ap.add_argument("--overlap", type=float, default=0.2)
-    ap.add_argument("--conf", type=float, default=0.25)
+    ap.add_argument("--conf", type=float, default=0.5)
     ap.add_argument("--device", default="cuda:0")
     args = ap.parse_args()
 

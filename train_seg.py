@@ -21,8 +21,8 @@ Lưu ý về defect NHỎ:
 import argparse
 from ultralytics import YOLO
 
-DEFAULT_DATA = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data/data.yaml"
-DEFAULT_PROJECT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/result"
+DEFAULT_DATA = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data_imgs/seg/data.yaml"
+DEFAULT_PROJECT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/results"
 
 
 def main():
@@ -31,7 +31,7 @@ def main():
     ap.add_argument("--model", default="yolo11s-seg.pt",
                     help="yolo11n-seg.pt (nhẹ) | yolo11s-seg.pt | yolo11m-seg.pt")
     ap.add_argument("--imgsz", type=int, default=640, help="Bằng kích thước tile")
-    ap.add_argument("--epochs", type=int, default=200)
+    ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--batch", type=int, default=8,
                     help="VRAM 8GB + seg -> để 8. Giảm còn 4 nếu CUDA out of memory")
     ap.add_argument("--workers", type=int, default=4,
