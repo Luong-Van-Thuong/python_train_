@@ -22,7 +22,7 @@ import argparse
 from ultralytics import YOLO
 
 DEFAULT_DATA = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data_imgs/seg/data.yaml"
-DEFAULT_PROJECT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/results"
+DEFAULT_PROJECT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/results/260622"
 
 
 def main():
@@ -63,8 +63,12 @@ def main():
         fliplr=0.5,
         flipud=0.5,          # defect không có chiều "đúng" -> lật dọc OK
         degrees=10.0,        # xoay nhẹ
-        scale=0.5,
+        scale=0.9,           # zoom 0.1x..1.9x: lỗi to/nhỏ đa dạng hơn (cũ 0.5)
         hsv_h=0.015, hsv_s=0.5, hsv_v=0.4,  # đổi sáng/màu cho robust ánh sáng
+
+        # LƯU Ý: KHÔNG bật multi_scale=True -> dính bug ZeroDivisionError
+        # (in_size/out_size) của ultralytics. scale=0.9 ở trên đã cho đa dạng
+        # kích cỡ lỗi rồi, nên không cần multi_scale.
 
         # --- Khác ---
         patience=50,         # early stopping nếu 50 epoch không cải thiện

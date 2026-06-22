@@ -358,7 +358,7 @@ def main():
                     help="Dấu phân tách để gom ảnh CÙNG MỘT CON HÀNG (lấy phần tên "
                          "trước dấu này). Vd '@': partA@goc1, partA@goc2 -> nhóm "
                          "'partA', luôn cùng 1 phía train/val. '' = chia theo từng ảnh")
-    ap.add_argument("--bg-ratio", type=float, default=1.0,
+    ap.add_argument("--bg-ratio", type=float, default=-1.0,
                     help="Số tile nền / số tile lỗi (mỗi ảnh NG). -1 = giữ tất cả")
     ap.add_argument("--min-area-frac", type=float, default=0.10,
                     help="Giữ mảnh clip nếu diện tích >= frac * diện tích gốc")
