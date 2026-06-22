@@ -4,21 +4,22 @@ cropa27.py
 ==========
 Cắt (crop) từng con hàng ra khỏi ảnh khay A27 bằng OpenCV thuần (không cần AI).
 
-Khay A27 là lưới 2x2 (tối đa 4 con hàng), có thể thiếu con (ô rỗng -> bỏ qua).
-Hỗ trợ 2 loại con hàng (chọn bằng PART_TYPE):
+Khay A27 là lưới cao su đen MỊN nhiều ô; con hàng (kim loại sáng) nằm RẢI RÁC ở
+vài ô bất kỳ, số lượng thay đổi (0..4). Con hàng có thể VUÔNG (giữa có cửa sổ tối)
+hoặc TRÒN (vành kim loại). Dò chung 1 cách, KHÔNG cần chọn loại:
 
-  - "round"  : con hàng TRÒN (vòng cao su tròn quanh chip vuông giữa).
-               -> DÒ TÂM bằng HoughCircles trên TOÀN ảnh: rất ổn định, KHÔNG
-                  phụ thuộc con hàng nằm chính giữa ô hay bị lệch vị trí.
-  - "square" : connector VUÔNG (giữa có cửa sổ tối).
-               -> chia lưới 2x2, mỗi ô dò khối "nhiều cạnh" (kim loại) làm tâm;
-                  ô mật độ cạnh thấp = hốc rỗng -> bỏ qua.
+  DÒ "ĐỐM CẠNH DÀY ĐẶC" trên TOÀN ảnh:
+    - Con hàng = cụm cạnh tương phản DÀY ĐẶC 2D (kim loại sáng xen khe/cửa sổ tối)
+      -> mật độ cạnh CAO.
+    - Lưới cao su = đường MẢNH, thưa  -> mật độ cạnh thấp (sau khi nhoè) -> loại.
+    - Nền nhựa trơn (dù sáng) = ít cạnh -> loại.
+  Sau khi ngưỡng mật độ + lấp lỗ, mỗi con hàng thành 1 KHỐI đặc; tâm = tâm
+  bounding-box của khối (ổn định cho cả con vuông lẫn vành tròn hở).
 
-Con hàng KHÔNG đổi kích thước -> có TÂM rồi cắt 1 khung CỐ ĐỊNH (rộng x cao)
-quanh tâm: tròn dùng PART_ROUND, vuông dùng PART_SQUARE.
+Con hàng KHÔNG đổi kích thước -> có TÂM rồi cắt 1 khung CỐ ĐỊNH (PART_BOX) quanh tâm.
 
 Cách dùng:
-  - Sửa INPUT_DIR / OUTPUT_DIR và PART_TYPE bên dưới cho đúng.
+  - Sửa INPUT_DIR / OUTPUT_DIR bên dưới cho đúng.
   - Chạy:  python cropa27.py
   - Ảnh cắt ra: <tên ảnh>_1.png, _2.png, ... trong OUTPUT_DIR.
   - Ảnh kiểm tra (khung đỏ) ở "_debug"; ảnh các bước ở "_steps".
@@ -34,37 +35,31 @@ import numpy as np
 # ============================================================
 
 # Đường dẫn kiểu WSL2: ổ Windows D:\ -> /mnt/d, C:\ -> /mnt/c ...
-INPUT_DIR  = "/mnt/d/Images_/SIBV/A27/img_train/burr"
-OUTPUT_DIR = "/mnt/d/Images_/SIBV/A27/img_train/burr_crop"
+INPUT_DIR  = "/mnt/d/Images_/SIBV/A27/img_train/260622/test"
+OUTPUT_DIR = "/mnt/d/Images_/SIBV/A27/test"
 
-# Loại con hàng: "round" (tròn - dùng Hough) hoặc "square" (vuông - dùng lưới)
-PART_TYPE = "round"
-
-# Lưới con hàng: 2 hàng x 2 cột (tối đa 4 con/khay)
-GRID_ROWS = 2
-GRID_COLS = 2
-MAX_PARTS = GRID_ROWS * GRID_COLS
+# Số con hàng tối đa trên 1 khay (nếu dò ra nhiều hơn -> giữ các đốm lớn nhất)
+MAX_PARTS = 4
 
 # ---- KÍCH THƯỚC KHUNG CẮT (CỐ ĐỊNH; con hàng không đổi kích thước) ----
 # (rộng, cao) px. >>> Đổi khi kích thước thực của con hàng khác đi. <<<
-PART_ROUND  = (2000, 2000)   # con hàng TRÒN
-PART_SQUARE = (2000, 2000)   # connector VUÔNG
+PART_BOX = (2000, 2000)
 
-# ---- THAM SỐ DÒ TRÒN (HoughCircles) ----
-# Ảnh gốc 5064px rất to -> thu nhỏ về HOUGH_DS cho nhanh rồi quy ngược toạ độ.
-# Các tỉ lệ tính theo HOUGH_DS nên KHÔNG phụ thuộc kích thước ảnh gốc.
-HOUGH_DS      = 1000
-HOUGH_DP      = 1.2
-HOUGH_MINDIST = 0.12     # khoảng cách tối thiểu giữa 2 tâm (theo HOUGH_DS)
-HOUGH_PARAM1  = 120
-HOUGH_PARAM2  = 45
-HOUGH_RMIN    = 0.05     # bán kính nhỏ nhất (theo HOUGH_DS)
-HOUGH_RMAX    = 0.13     # bán kính lớn nhất (theo HOUGH_DS)
-RADIUS_TOL    = (0.6, 1.6)   # giữ vòng có bán kính trong [lo, hi]*trung vị
-
-# ---- NGƯỠNG Ô RỖNG cho chế độ "square" (theo mật độ cạnh trung bình) ----
-EMPTY_GRAD_ABS = 15.0
-EMPTY_GRAD_REL = 0.5
+# ---- THAM SỐ DÒ "ĐỐM CẠNH DÀY ĐẶC" ----
+# Ảnh gốc 5064px rất to -> thu nhỏ về DET_DS cho nhanh rồi quy ngược toạ độ.
+# Các tỉ lệ tính theo DET_DS nên KHÔNG phụ thuộc kích thước ảnh gốc.
+DET_DS    = 1200     # bề rộng ảnh dò
+RANGE_K   = 9        # cửa sổ tính tương phản cục bộ (range = max-min)
+RANGE_THR = 35       # range >= ngưỡng này -> coi là 'có cạnh'. HẠ xuống (vd 28)
+                     # để bắt thêm con TRÒN nhẵn (cạnh yếu); TĂNG (vd 45) nếu
+                     # bị nhận nhầm nền/lưới (ít false-positive hơn).
+DENS_THR  = 0.42     # tỉ lệ cạnh trong cửa sổ -> coi là vùng kim loại đặc
+MIN_AREA_F = 0.012   # diện tích đốm tối thiểu (theo DET_DS^2) -> loại đốm vụn
+MAX_AREA_F = 0.18    # diện tích đốm tối đa  (theo DET_DS^2) -> loại mảng nền lớn
+EXTENT_MIN = 0.50    # area/bbox: con hàng ĐẶC -> cao; nhánh lưới/nhiễu -> thấp
+ASPECT_TOL = (0.55, 1.8)  # rộng/cao của đốm: con hàng gần vuông -> loại vệt dài
+BRIGHT_MIN = 95      # độ sáng tb của đốm: con hàng = kim loại SÁNG; ô rỗng (oval
+                     # lưới) thì TỐI -> loại. Hạ nếu sót con hàng tối màu.
 
 # Đuôi file ảnh đầu vào và định dạng lưu ra
 INPUT_EXT = "*.bmp"
@@ -75,81 +70,62 @@ SHOW_STEPS = True
 
 
 # ============================================================
-# 2A) DÒ CON HÀNG TRÒN BẰNG HoughCircles (toàn ảnh)
+# 2A) DÒ "ĐỐM CẠNH DÀY ĐẶC" (toàn ảnh, dùng chung cho vuông & tròn)
 # ============================================================
-def _do_tron(img):
-    """Trả về danh sách TÂM (cx, cy) theo toạ độ ảnh GỐC của các con hàng tròn."""
+def _lap_lo(mask):
+    """Lấp lỗ bên trong (cửa sổ tối ở giữa con hàng) -> khối đặc."""
+    ff = mask.copy()
+    h, w = mask.shape
+    m = np.zeros((h + 2, w + 2), np.uint8)
+    cv2.floodFill(ff, m, (0, 0), 255)          # tô nền ngoài
+    return mask | cv2.bitwise_not(ff)          # phần còn lại = lỗ -> lấp
+
+
+def _do_dom(img):
+    """Trả về danh sách TÂM (cx, cy) theo toạ độ ảnh GỐC của các con hàng."""
     h, w = img.shape[:2]
-    s = HOUGH_DS / float(w)
-    small = cv2.resize(img, (HOUGH_DS, int(round(h * s))))
-    gray = cv2.medianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), 7)
+    s = DET_DS / float(w)
+    small = cv2.resize(img, (DET_DS, int(round(h * s))))
+    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
 
-    circles = cv2.HoughCircles(
-        gray, cv2.HOUGH_GRADIENT, dp=HOUGH_DP,
-        minDist=int(HOUGH_DS * HOUGH_MINDIST),
-        param1=HOUGH_PARAM1, param2=HOUGH_PARAM2,
-        minRadius=int(HOUGH_DS * HOUGH_RMIN),
-        maxRadius=int(HOUGH_DS * HOUGH_RMAX))
-    if circles is None:
-        return []
+    # 1) Cạnh tương phản cục bộ: range = max-min trong cửa sổ nhỏ.
+    ker_r = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (RANGE_K, RANGE_K))
+    rng = cv2.dilate(gray, ker_r).astype(np.int16) - cv2.erode(gray, ker_r)
+    edges = (rng >= RANGE_THR).astype(np.float32)
 
-    circ = list(circles[0])                 # đã sắp theo độ "chắc" (accumulator)
-    rmed = float(np.median([c[2] for c in circ]))
-    circ = [c for c in circ
-            if RADIUS_TOL[0] * rmed <= c[2] <= RADIUS_TOL[1] * rmed]
-    circ = circ[:MAX_PARTS]                  # khay tối đa MAX_PARTS con
+    # 2) Mật độ cạnh: con hàng = cụm cạnh DÀY ĐẶC 2D -> cao;
+    #    lưới = đường MẢNH thưa -> thấp (sau khi nhoè) -> bị loại.
+    dens = cv2.GaussianBlur(edges, (0, 0), DET_DS / 25.0)
+    mask = (dens >= DENS_THR).astype(np.uint8) * 255
 
-    pts = [(int(cx / s), int(cy / s)) for cx, cy, _ in circ]
+    kc = max(5, DET_DS // 50)
+    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kc, kc))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, ker)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, ker)
+    mask = _lap_lo(mask)
+
+    # 3) Mỗi khối đặc đủ lớn = 1 con hàng; tâm = tâm bounding-box.
+    n, lbl, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    A = DET_DS * DET_DS
+    blobs = []
+    for i in range(1, n):
+        a = stats[i, cv2.CC_STAT_AREA]
+        if a < MIN_AREA_F * A or a > MAX_AREA_F * A:
+            continue
+        x, y, ww, hh = (stats[i, cv2.CC_STAT_LEFT], stats[i, cv2.CC_STAT_TOP],
+                        stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT])
+        if a / float(ww * hh) < EXTENT_MIN:          # đốm rỗng/vệt lưới -> bỏ
+            continue
+        if not (ASPECT_TOL[0] <= ww / float(hh) <= ASPECT_TOL[1]):
+            continue
+        if float(gray[lbl == i].mean()) < BRIGHT_MIN:  # ô rỗng (oval tối) -> bỏ;
+            continue                                   # con hàng là kim loại SÁNG
+        blobs.append((a, int((x + ww / 2.0) / s), int((y + hh / 2.0) / s)))
+
+    blobs.sort(key=lambda b: -b[0])             # đốm lớn nhất trước
+    blobs = blobs[:MAX_PARTS]                    # khay tối đa MAX_PARTS con
+    pts = [(cx, cy) for _, cx, cy in blobs]
     pts.sort(key=lambda p: (round(p[1] / (h / 3.0)), p[0]))  # trên->dưới, trái->phải
-    return pts
-
-
-# ============================================================
-# 2B) DÒ CONNECTOR VUÔNG THEO LƯỚI 2x2 (mật độ cạnh)
-# ============================================================
-def _grad_o(cell):
-    """Mật độ cạnh của 1 ô: kim loại nhiều chi tiết -> cao; nền/nhựa -> thấp."""
-    gray = cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY)
-    k = max(5, (cell.shape[1] // 200) | 1)
-    return cv2.morphologyEx(gray, cv2.MORPH_GRADIENT,
-                            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
-
-
-def _tam_vuong_trong_o(cell, grad):
-    """Tâm con hàng vuông trong 1 ô = tâm bao của khối 'nhiều cạnh' lớn nhất."""
-    cw = cell.shape[1]
-    dens = cv2.GaussianBlur(grad, (0, 0), cw / 40.0)
-    _, m = cv2.threshold(dens, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    kk = max(7, cw // 40)
-    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kk, kk))
-    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, ker)
-    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, ker)
-    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not cnts:
-        return None
-    x, y, w, h = cv2.boundingRect(max(cnts, key=cv2.contourArea))
-    return (x + w // 2, y + h // 2)
-
-
-def _do_vuong(img):
-    """Trả về danh sách TÂM (cx, cy) theo toạ độ ảnh GỐC, bỏ ô rỗng."""
-    h_img, w_img = img.shape[:2]
-    ch, cw = h_img // GRID_ROWS, w_img // GRID_COLS
-    cells = []
-    for r in range(GRID_ROWS):
-        for c in range(GRID_COLS):
-            y0, x0 = r * ch, c * cw
-            cell = img[y0:y0 + ch, x0:x0 + cw]
-            g = _grad_o(cell)
-            cells.append((x0, y0, cell, g, float(g.mean())))
-    gmax = max(c[4] for c in cells) if cells else 0.0
-    pts = []
-    for x0, y0, cell, g, gm in cells:
-        if gm < EMPTY_GRAD_ABS or gm < EMPTY_GRAD_REL * gmax:
-            continue                       # hốc rỗng -> bỏ qua
-        res = _tam_vuong_trong_o(cell, g)
-        if res is not None:
-            pts.append((x0 + res[0], y0 + res[1]))
     return pts
 
 
@@ -164,14 +140,11 @@ def _khung_co_dinh(tam_x, tam_y, W, H, w_img, h_img):
 
 
 def tim_cac_linh_kien(img):
-    """Dò tâm con hàng (theo PART_TYPE) rồi cắt khung cố định quanh mỗi tâm.
+    """Dò tâm con hàng rồi cắt khung cố định quanh mỗi tâm.
     Trả về danh sách khung (x1, y1, x2, y2) theo toạ độ ảnh GỐC."""
     h_img, w_img = img.shape[:2]
-    if PART_TYPE == "round":
-        centers, (W, H) = _do_tron(img), PART_ROUND
-    else:
-        centers, (W, H) = _do_vuong(img), PART_SQUARE
-    return [_khung_co_dinh(cx, cy, W, H, w_img, h_img) for cx, cy in centers]
+    W, H = PART_BOX
+    return [_khung_co_dinh(cx, cy, W, H, w_img, h_img) for cx, cy in _do_dom(img)]
 
 
 # ============================================================
@@ -241,7 +214,6 @@ def main():
     os.makedirs(steps_dir, exist_ok=True)
 
     danh_sach_anh = sorted(glob.glob(os.path.join(INPUT_DIR, INPUT_EXT)))
-    print(f"Loai con hang: {PART_TYPE}")
     print(f"Tim thay {len(danh_sach_anh)} anh trong: {INPUT_DIR}\n")
 
     for duong_dan in danh_sach_anh:
