@@ -276,7 +276,7 @@ def main():
     ap.add_argument("--tile", type=int, default=640, help="Kích thước tile (px)")
     ap.add_argument("--overlap", type=float, default=0.20, help="Tỉ lệ chồng lấn 0..1")
     ap.add_argument("--val-ratio", type=float, default=0.2, help="Tỉ lệ ảnh dùng cho val")
-    ap.add_argument("--bg-ratio", type=float, default=5.0,
+    ap.add_argument("--bg-ratio", type=float, default=1.0,
                     help="Số tile nền giữ lại / số tile có lỗi (mỗi ảnh). -1 = giữ tất cả")
     ap.add_argument("--min-area-frac", type=float, default=0.10,
                     help="Giữ mảnh clip nếu diện tích >= frac * diện tích gốc")

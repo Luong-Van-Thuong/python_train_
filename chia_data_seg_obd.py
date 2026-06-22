@@ -17,9 +17,13 @@ Khác biệt định dạng nhãn (toạ độ chuẩn hoá theo tile 0..1):
     obd:  <cid> cx cy w h                    (tâm + rộng/cao của bbox)
 
 Pipeline (giữ nguyên logic của chia_data.py gốc):
-    1. Quét cặp (ảnh + .json labelme) ở thư mục NG, và ảnh OK (không json).
+    1. Quét cả thư mục NG và OK. Phân loại theo SỰ TỒN TẠI của .json (không theo
+       tên thư mục): ảnh CÓ .json -> ảnh lỗi (sinh nhãn); ảnh KHÔNG .json -> nền.
+       Nhờ vậy NG/OK lẫn lộn vẫn đúng (OK lọt vào NG, hay NG lọt vào OK).
     2. Tự gán class id ổn định theo alphabet.
     3. Chia train/val theo ẢNH GỐC (tránh rò rỉ tile cùng ảnh sang 2 phía).
+       Riêng ảnh có TÊN bắt đầu bằng 'pass' (đổi qua --val-prefix) thì LUÔN
+       vào val để test/đánh giá, không bao giờ vào train.
     4. Cắt tile (vd 640x640, overlap 20%), clip polygon bằng Shapely.
     5. Giữ tile có lỗi; cân bằng tile nền theo BG_RATIO.
     6. Ghi nhãn theo (các) task yêu cầu + sinh data.yaml riêng cho từng task.
@@ -53,9 +57,13 @@ from tqdm import tqdm
 # Cấu hình mặc định (sửa trực tiếp hoặc truyền qua dòng lệnh)
 # Chạy WSL2: ổ D:\ map sang /mnt/d/
 # --------------------------------------------------------------------------- #
-DEFAULT_SRC = "/mnt/d/Images_/SIBV/A26/260615_0/ng_"
-DEFAULT_OK = "/mnt/d/Images_/SIBV/A26/260615_0/ok_"   # ảnh OK, KHÔNG có .json
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data_multitask"
+DEFAULT_SRC = "/mnt/d/Images_/SIBV/A26/img_train/ng_"
+DEFAULT_OK = "/mnt/d/Images_/SIBV/A26/img_train/ok_"   # thường là ảnh OK (nền)
+DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data_imgs"
+
+# Ảnh có TÊN bắt đầu bằng tiền tố này -> LUÔN đưa vào val (để test/đánh giá mô
+# hình), KHÔNG bao giờ vào train. Đặt "" để tắt tính năng này.
+DEFAULT_VAL_PREFIX = "pass"
 
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 TASK_CHOICES = ("seg", "obd", "both")
@@ -93,37 +101,54 @@ def shape_to_polygon(shape):
     return None  # circle/line/point -> bỏ qua
 
 
-def collect_pairs(src_dir):
-    """Tìm cặp (ảnh, json) trong thư mục NG."""
-    src = Path(src_dir)
-    pairs = []
-    for json_path in sorted(src.glob("*.json")):
-        img_path = None
-        for ext in IMG_EXTS:
-            cand = json_path.with_suffix(ext)
-            if cand.exists():
-                img_path = cand
-                break
-        if img_path is None:
-            print(f"[CẢNH BÁO] Không tìm thấy ảnh cho {json_path.name}, bỏ qua.")
-            continue
-        pairs.append((img_path, json_path))
-    return pairs
+def collect_dir(dir_path, label=""):
+    """Quét 1 thư mục -> list (img_path, json_path | None).
 
-
-def collect_ok_images(ok_dir):
-    """Ảnh OK (không có .json) -> list (img_path, None)."""
-    if not ok_dir:
+    PHÂN LOẠI THEO SỰ TỒN TẠI CỦA FILE .json, KHÔNG theo tên thư mục:
+      - ảnh CÓ file .json trùng tên cạnh nó  -> coi là ảnh LỖI (sinh nhãn).
+      - ảnh KHÔNG có .json                    -> coi là ảnh NỀN/OK (nhãn rỗng).
+    Nhờ vậy thư mục NG và OK có lẫn lộn cũng xử lý đúng:
+      ảnh OK lọt vào NG (thiếu .json) -> xử lý như OK;
+      ảnh NG lọt vào OK (có .json)    -> xử lý như NG.
+    """
+    if not dir_path:
         return []
-    src = Path(ok_dir)
+    src = Path(dir_path)
     if not src.exists():
-        print(f"[CẢNH BÁO] Không tìm thấy thư mục ảnh OK: {ok_dir}, bỏ qua.")
+        print(f"[CẢNH BÁO] Không tìm thấy thư mục {label}: {dir_path}, bỏ qua.")
         return []
-    pairs = []
+    out = []
     for img_path in sorted(src.iterdir()):
-        if img_path.suffix.lower() in IMG_EXTS:
-            pairs.append((img_path, None))
-    return pairs
+        if img_path.suffix.lower() not in IMG_EXTS:
+            continue
+        json_path = img_path.with_suffix(".json")
+        out.append((img_path, json_path if json_path.exists() else None))
+    return out
+
+
+def group_key(img_path, sep):
+    """Khoá gom các ảnh CÙNG MỘT CON HÀNG vật lý.
+
+    Lấy phần tên file đứng TRƯỚC dấu phân tách `sep`.
+        sep='@', 'partA@goc1.bmp' -> 'partA'  (partA@goc1, partA@goc2 cùng nhóm)
+        sep=''  -> trả nguyên tên file  (mỗi ảnh là 1 nhóm, chia theo từng ảnh)
+    Dùng để mọi ảnh chụp cùng 1 con hàng luôn nằm trọn 1 phía train/val,
+    tránh rò rỉ dữ liệu (cùng vết lỗi xuất hiện ở cả train lẫn val).
+    """
+    stem = img_path.stem
+    if sep and sep in stem:
+        return stem.split(sep)[0]
+    return stem
+
+
+def is_forced_val(img_path, prefix):
+    """Ảnh có tên bắt đầu bằng `prefix` (vd 'pass') -> luôn vào val để đánh giá.
+
+    So khớp KHÔNG phân biệt hoa/thường. prefix rỗng -> tắt (luôn trả False).
+    """
+    if not prefix:
+        return False
+    return img_path.stem.lower().startswith(prefix.lower())
 
 
 def build_class_map(pairs):
@@ -294,7 +319,7 @@ def process_image(img_path, json_path, class_map, task_dirs, tasks,
             crop = padded
         name = f"{stem}__x{x0}_y{y0}"
         for t in tasks:
-            img_dir, lbl_dir = task_dirs[t]
+            img_dir, lbl_dir = task_dirs[t] 
             imwrite_unicode(img_dir / f"{name}{img_ext}", crop, img_ext)
             with open(lbl_dir / f"{name}.txt", "w", encoding="utf-8") as f:
                 f.write("\n".join(lines[t]))
@@ -326,7 +351,14 @@ def main():
     ap.add_argument("--tile", type=int, default=640, help="Kích thước tile (px)")
     ap.add_argument("--overlap", type=float, default=0.20, help="Tỉ lệ chồng lấn 0..1")
     ap.add_argument("--val-ratio", type=float, default=0.2, help="Tỉ lệ ảnh val")
-    ap.add_argument("--bg-ratio", type=float, default=1.0,
+    ap.add_argument("--val-prefix", default=DEFAULT_VAL_PREFIX,
+                    help="Ảnh có tên bắt đầu bằng tiền tố này LUÔN vào val (không "
+                         "vào train). Vd 'pass'. '' để tắt")
+    ap.add_argument("--group-sep", default="",
+                    help="Dấu phân tách để gom ảnh CÙNG MỘT CON HÀNG (lấy phần tên "
+                         "trước dấu này). Vd '@': partA@goc1, partA@goc2 -> nhóm "
+                         "'partA', luôn cùng 1 phía train/val. '' = chia theo từng ảnh")
+    ap.add_argument("--bg-ratio", type=float, default=-1.0,
                     help="Số tile nền / số tile lỗi (mỗi ảnh NG). -1 = giữ tất cả")
     ap.add_argument("--min-area-frac", type=float, default=0.10,
                     help="Giữ mảnh clip nếu diện tích >= frac * diện tích gốc")
@@ -340,35 +372,70 @@ def main():
     tasks = ["seg", "obd"] if args.task == "both" else [args.task]
     rng = random.Random(args.seed)
 
-    pairs = collect_pairs(args.src)
-    if not pairs:
-        print(f"[LỖI] Không tìm thấy cặp ảnh+json trong {args.src}")
+    # Quét cả 2 thư mục như nhau; phân loại lỗi/nền theo SỰ TỒN TẠI của .json.
+    pairs = collect_dir(args.src, "NG")
+    ok_pairs = collect_dir(args.ok_src, "OK")
+    if not pairs and not ok_pairs:
+        print(f"[LỖI] Không tìm thấy ảnh nào trong {args.src} hoặc {args.ok_src}")
         return
-    print(f"Tìm thấy {len(pairs)} cặp ảnh+nhãn (NG).")
 
-    ok_pairs = collect_ok_images(args.ok_src)
-    print(f"Tìm thấy {len(ok_pairs)} ảnh OK (nền sạch).")
+    all_pairs = pairs + ok_pairs
+    n_defect = sum(1 for _, j in all_pairs if j is not None)
+    n_bg = len(all_pairs) - n_defect
+    print(f"Tìm thấy {len(all_pairs)} ảnh: {n_defect} ảnh LỖI (có .json), "
+          f"{n_bg} ảnh NỀN (không .json).")
 
-    class_map, classes = build_class_map(pairs)
+    class_map, classes = build_class_map(all_pairs)
     print("Class map (id ổn định theo alphabet):")
     for name, i in class_map.items():
         print(f"   {i}: {name}")
 
-    # Chia train/val theo ẢNH GỐC, tách riêng NG và OK rồi gộp
+    # Chia train/val GOM theo con hàng (group_key), tách riêng NG và OK rồi gộp.
+    # Xáo trộn & chia theo NHÓM con hàng -> mọi ảnh cùng con hàng đi cùng 1 phía.
     def split_pairs(plist):
-        shuffled = plist[:]
-        rng.shuffle(shuffled)
-        if not shuffled:
+        if not plist:
             return [], []
-        n_val = max(1, int(round(len(shuffled) * args.val_ratio)))
-        return shuffled[n_val:], shuffled[:n_val]
+        # 1) Tách riêng ảnh BUỘC vào val (tên bắt đầu bằng val_prefix, vd 'pass').
+        #    Những ảnh này luôn ở val, không tham gia chia ngẫu nhiên, không vào train.
+        forced_val = [p for p in plist if is_forced_val(p[0], args.val_prefix)]
+        rest = [p for p in plist if not is_forced_val(p[0], args.val_prefix)]
+        # 2) Phần còn lại: gom theo khoá con hàng rồi chia train/val như cũ.
+        groups = {}
+        for pair in rest:
+            key = group_key(pair[0], args.group_sep)
+            groups.setdefault(key, []).append(pair)
+        keys = list(groups.keys())
+        rng.shuffle(keys)
+        if keys:
+            n_val = max(1, int(round(len(keys) * args.val_ratio)))
+        else:
+            n_val = 0
+        val_keys, train_keys = keys[:n_val], keys[n_val:]
+        train = [p for k in train_keys for p in groups[k]]
+        val = [p for k in val_keys for p in groups[k]] + forced_val
+        return train, val
+
+    if args.group_sep:
+        n_parts = len({group_key(p[0], args.group_sep) for p in pairs})
+        print(f"Gom ảnh NG theo dấu '{args.group_sep}': {n_parts} con hàng "
+              f"từ {len(pairs)} ảnh (mỗi con hàng nằm trọn 1 phía train/val).")
 
     train_ng, val_ng = split_pairs(pairs)
     train_ok, val_ok = split_pairs(ok_pairs)
     train_pairs = train_ng + train_ok
     val_pairs = val_ng + val_ok
-    print(f"Chia: train={len(train_pairs)} (NG={len(train_ng)}, OK={len(train_ok)}), "
-          f"val={len(val_pairs)} (NG={len(val_ng)}, OK={len(val_ok)})")
+    if args.val_prefix:
+        n_forced = sum(is_forced_val(p[0], args.val_prefix)
+                       for p in pairs + ok_pairs)
+        print(f"Ảnh tên bắt đầu '{args.val_prefix}' -> ép vào val: {n_forced} ảnh "
+              f"(không vào train).")
+    def dem_loi(plist):
+        d = sum(1 for _, j in plist if j is not None)
+        return d, len(plist) - d
+    tr_d, tr_b = dem_loi(train_pairs)
+    va_d, va_b = dem_loi(val_pairs)
+    print(f"Chia: train={len(train_pairs)} (lỗi={tr_d}, nền={tr_b}), "
+          f"val={len(val_pairs)} (lỗi={va_d}, nền={va_b})")
 
     # Tạo cây thư mục cho từng task: <out>/<task>/{images,labels}/{train,val}
     out_base = Path(args.out)
