@@ -2,50 +2,37 @@
 """
 predict_unet.py
 ===============
-Inference U-Net trên ẢNH GỐC độ phân giải cao (vd 2200x2200) bằng SLIDING WINDOW:
-cắt tile (đúng kích thước lúc train) -> dự đoán từng tile -> CỘNG DỒN xác suất
-vào bản đồ cả ảnh (trung bình vùng chồng lấn) -> argmax ra mask cả ảnh.
-
-Sau đó tô màu vùng lỗi lên ảnh gốc + vẽ contour, lưu kết quả.
-
-Nạp lại đúng kiến trúc nhờ model_cfg.yaml do train_unet.py sinh ra.
-
-Chạy:
-    python predict_unet.py --source /mnt/d/Images_/SIBV/A26/test/
-    python predict_unet.py --source anh.png --conf 0.5 --min-area 30
+Inference U-Net trên ẢNH GỐC độ phân giải cao bằng SLIDING WINDOW.
+Đã loại bỏ phần xuất file mask thô để tối ưu tốc độ I/O.
 """
 
 import argparse
 from pathlib import Path
-
 import cv2
 import numpy as np
 import yaml
 import torch
-
 import segmentation_models_pytorch as smp
 
 # ==============================================================================
 # CONFIGURATION ZONE
 # ==============================================================================
-DEBUG_SOURCE = "/mnt/d/Images_/SIBV/A26/test/"
-DEFAULT_CFG = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/results/unet/defect_unet/model_cfg.yaml"
-DEFAULT_WEIGHTS = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/results/unet/defect_unet/weights/best.pt"
+DEBUG_SOURCE = "/mnt/d/Images_/SIBV/A27/test/"
+DEFAULT_CFG = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml"
+DEFAULT_WEIGHTS = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/weights/best.pt"
 DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/predict_out/folder_unet_AI_tra_ve"
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
-# Màu BGR cho từng class (0 = nền -> không tô)
 COLORS = [
-    (0, 0, 0),       # 0 nền
-    (0, 0, 255),     # 1 đỏ
-    (0, 165, 255),   # 2 cam
-    (0, 255, 0),     # 3 xanh lá
-    (255, 0, 0),     # 4 xanh dương
-    (255, 0, 255),   # 5 hồng
-    (0, 255, 255),   # 6 vàng
+    (0, 0, 0),        # 0 nền
+    (0, 0, 255),      # 1 đỏ
+    (0, 165, 255),    # 2 cam
+    (0, 255, 0),      # 3 xanh lá
+    (255, 0, 0),      # 4 xanh dương
+    (255, 0, 255),    # 5 hồng
+    (0, 255, 255),    # 6 vàng
 ]
 # ==============================================================================
-
 
 def imread_unicode(path, flags=cv2.IMREAD_COLOR):
     data = np.fromfile(str(path), dtype=np.uint8)
@@ -53,13 +40,11 @@ def imread_unicode(path, flags=cv2.IMREAD_COLOR):
         return None
     return cv2.imdecode(data, flags)
 
-
 def imwrite_unicode(path, img, ext=".png"):
     ok, buf = cv2.imencode(ext, img)
     if ok:
         buf.tofile(str(path))
     return ok
-
 
 def gather_sources(source):
     p = Path(source)
@@ -69,9 +54,7 @@ def gather_sources(source):
         return [p]
     return []
 
-
 def tile_origins(length, tile, overlap):
-    """Toạ độ gốc tile dọc 1 chiều, phủ tới mép (khớp chia_data_unet.py)."""
     if length <= tile:
         return [0]
     step = max(1, int(round(tile * (1.0 - overlap))))
@@ -80,10 +63,8 @@ def tile_origins(length, tile, overlap):
         xs.append(length - tile)
     return xs
 
-
 @torch.no_grad()
 def predict_full(model, img_rgb, mean, std, tile, overlap, device, num_classes):
-    """Sliding window -> trả về (pred_mask HxW int, prob_max HxW float)."""
     H, W = img_rgb.shape[:2]
     mean = np.array(mean, dtype=np.float32)
     std = np.array(std, dtype=np.float32)
@@ -98,7 +79,7 @@ def predict_full(model, img_rgb, mean, std, tile, overlap, device, num_classes):
         for x0 in xs:
             crop = img_rgb[y0:y0 + tile, x0:x0 + tile]
             th, tw = crop.shape[:2]
-            if (th, tw) != (tile, tile):                 # pad mép
+            if (th, tw) != (tile, tile):
                 pad = np.zeros((tile, tile, 3), dtype=crop.dtype)
                 pad[:th, :tw] = crop
                 crop = pad
@@ -107,7 +88,7 @@ def predict_full(model, img_rgb, mean, std, tile, overlap, device, num_classes):
             x = torch.from_numpy(x.transpose(2, 0, 1)).unsqueeze(0).to(device)
             with torch.autocast(device_type="cuda", enabled=(device.type == "cuda")):
                 logits = model(x)
-            prob = torch.softmax(logits, dim=1)[0].float().cpu().numpy()  # C,tile,tile
+            prob = torch.softmax(logits, dim=1)[0].float().cpu().numpy()
 
             prob_sum[:, y0:y0 + th, x0:x0 + tw] += prob[:, :th, :tw]
             count[y0:y0 + th, x0:x0 + tw] += 1.0
@@ -118,9 +99,7 @@ def predict_full(model, img_rgb, mean, std, tile, overlap, device, num_classes):
     prob_max = prob_avg.max(0)
     return pred, prob_max
 
-
 def render(img_bgr, pred, prob_max, names, conf, min_area):
-    """Tô màu vùng lỗi + vẽ contour. Trả về (ảnh kết quả, list lỗi)."""
     vis = img_bgr.copy()
     overlay = vis.copy()
     defects = []
@@ -133,7 +112,6 @@ def render(img_bgr, pred, prob_max, names, conf, min_area):
         if cls_mask.sum() == 0:
             continue
 
-        # tách từng vùng lỗi rời nhau, bỏ vùng quá nhỏ
         n, lbl, stats, _ = cv2.connectedComponentsWithStats(cls_mask, 8)
         keep = np.zeros_like(cls_mask)
         for k in range(1, n):
@@ -147,26 +125,24 @@ def render(img_bgr, pred, prob_max, names, conf, min_area):
             defects.append((cname, int(area), x, y, w, h))
             cv2.rectangle(vis, (x, y), (x + w, y + h), color, 2)
 
-        overlay[keep == 1] = color
-        cnts, _ = cv2.findContours(keep, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(vis, cnts, -1, color, 1)
+        if keep.sum() > 0:
+            overlay[keep == 1] = color
+            cnts, _ = cv2.findContours(keep, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(vis, cnts, -1, color, 1)
 
     vis = cv2.addWeighted(overlay, 0.4, vis, 0.6, 0)
     return vis, defects
 
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", default=None, help="Ảnh hoặc thư mục ảnh")
-    ap.add_argument("--cfg", default=DEFAULT_CFG, help="model_cfg.yaml (do train sinh)")
+    ap.add_argument("--cfg", default=DEFAULT_CFG, help="model_cfg.yaml")
     ap.add_argument("--weights", default=DEFAULT_WEIGHTS, help="best.pt")
     ap.add_argument("--out", default=DEFAULT_OUT, help="Thư mục xuất kết quả")
-    ap.add_argument("--tile", type=int, default=0, help="0 = lấy theo cfg lúc train")
+    ap.add_argument("--tile", type=int, default=0, help="0 = lấy theo cfg")
     ap.add_argument("--overlap", type=float, default=0.2)
-    ap.add_argument("--conf", type=float, default=0.5,
-                    help="Ngưỡng xác suất: pixel lỗi phải >= mới giữ")
-    ap.add_argument("--min-area", type=int, default=20,
-                    help="Bỏ vùng lỗi nhỏ hơn ngần này pixel (lọc nhiễu)")
+    ap.add_argument("--conf", type=float, default=0.5)
+    ap.add_argument("--min-area", type=int, default=20)
     ap.add_argument("--device", default="cuda:0")
     args = ap.parse_args()
 
@@ -191,7 +167,6 @@ def main():
     mean, std = cfg["mean"], cfg["std"]
 
     print(f"[INFO] {cfg['arch']} + {cfg['encoder']} | classes={num_classes} | tile={tile}")
-    # encoder_weights=None: KHÔNG tải pretrained, ta nạp weights đã train
     model = smp.create_model(cfg["arch"], encoder_name=cfg["encoder"],
                              encoder_weights=None, in_channels=3,
                              classes=num_classes).to(device)
@@ -217,16 +192,16 @@ def main():
                                       args.overlap, device, num_classes)
         vis, defects = render(img, pred, prob_max, names, args.conf, args.min_area)
 
+        # CHỈ LƯU ẢNH KẾT QUẢ VÀ FILE TXT THÔNG TIN LỖI
         imwrite_unicode(out_dir / f"{f.stem}_pred.png", vis, ".png")
-        # mask thô (pixel = class id) để dùng lại nếu cần
-        imwrite_unicode(out_dir / f"{f.stem}_mask.png", pred.astype(np.uint8), ".png")
         print(f"-> {f.name}: {len(defects)} vùng lỗi")
-        with open(out_dir / f"{f.stem}.txt", "w", encoding="utf-8") as fh:
-            for cname, area, x, y, w, h in defects:
-                fh.write(f"{cname} area={area} {x} {y} {x + w} {y + h}\n")
+        
+        if defects:
+            with open(out_dir / f"{f.stem}.txt", "w", encoding="utf-8") as fh:
+                for cname, area, x, y, w, h in defects:
+                    fh.write(f"{cname} area={area} {x} {y} {x + w} {y + h}\n")
 
     print(f"\n[HOÀN TẤT] Kết quả tại: {out_dir}")
-
 
 if __name__ == "__main__":
     main()
