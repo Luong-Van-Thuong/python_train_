@@ -39,11 +39,10 @@ OUTPUT_DIR = "/mnt/d/Images_/SIBV/A27/260629_crop"
 
 # Ảnh gốc rất to -> thu nhỏ về DET_DS để dò cho nhanh rồi quy ngược toạ độ.
 DET_DS     = 1000      # bề rộng ảnh dò
-BRIGHT_THR = 205       # gray > ngưỡng này -> coi là 'đĩa sáng' (nền đèn ring).
-                       # HẠ (vd 195) nếu đĩa sáng bị thủng nhiều; TĂNG nếu con
-                       # hàng có chỗ sáng bị tính nhầm vào nền.
+WHITE_THR  = 200       # gray < ngưỡng này -> coi là 'không trắng' (con hàng/góc tối).
+  # TĂNG (vd 215) nếu con hàng sáng bị sót; HẠ nếu dính nền.
 MIN_AREA_F = 0.010     # diện tích đốm tối thiểu (theo DET_DS^2) -> loại đốm vụn
-MARGIN_F   = 0.06      # nới thêm lề quanh con hàng = 6% cạnh khung (mỗi phía)
+MARGIN_F   = 0.04      # nới thêm lề quanh con hàng = 4% cạnh khung (mỗi phía)
 
 INPUT_EXT = "*.bmp"
 SAVE_EXT  = ".png"
@@ -53,15 +52,13 @@ SHOW_DEBUG = True       # lưu ảnh kiểm tra (khung đỏ) ở thư mục _de
 # ============================================================
 # 2) DÒ KHUNG CON HÀNG
 # ============================================================
-def _do_lon_nhat(mask):
-    """Trả về (area, x, y, w, h) của đốm trắng LỚN NHẤT trong mask, hoặc None."""
-    n, lbl, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
-    if n < 2:
-        return None
-    i = 1 + int(np.argmax([stats[k, cv2.CC_STAT_AREA] for k in range(1, n)]))
-    return (stats[i, cv2.CC_STAT_AREA], stats[i, cv2.CC_STAT_LEFT],
-            stats[i, cv2.CC_STAT_TOP], stats[i, cv2.CC_STAT_WIDTH],
-            stats[i, cv2.CC_STAT_HEIGHT])
+def _lap_lo(mask):
+    """Lấp lỗ bên trong (cửa sổ sáng giữa con hàng) -> khối đặc."""
+    ff = mask.copy()
+    h, w = mask.shape
+    m = np.zeros((h + 2, w + 2), np.uint8)
+    cv2.floodFill(ff, m, (0, 0), 255)          # tô nền ngoài
+    return mask | cv2.bitwise_not(ff)          # phần còn lại = lỗ -> lấp
 
 
 def tim_khung_con_hang(img):
@@ -72,29 +69,33 @@ def tim_khung_con_hang(img):
     small = cv2.resize(img, (DET_DS, det_h))
     gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
 
-    # 1) Đĩa sáng = vùng sáng LỚN NHẤT (nền đèn ring). Góc đen bị loại ở đây.
-    bright = (gray > BRIGHT_THR).astype(np.uint8) * 255
-    disc = _do_lon_nhat(bright)
-    if disc is None:
-        return None
-    dn, dx, dy, dw, dh = disc
-    disc_mask = np.zeros_like(bright)
-    disc_mask[dy:dy + dh, dx:dx + dw] = bright[dy:dy + dh, dx:dx + dw]
+    # 1) Vùng 'không trắng' = con hàng + 4 góc vignette tối.
+    mask = (gray < WHITE_THR).astype(np.uint8) * 255
 
-    # 2) Lấp lỗ của đĩa: floodFill từ (0,0) (luôn nằm NGOÀI đĩa) tô vùng ngoài;
-    #    phần đĩa chưa tô + lỗ bên trong = đĩa đặc. Lỗ = con hàng.
-    ff = disc_mask.copy()
-    m = np.zeros((det_h + 2, DET_DS + 2), np.uint8)
-    cv2.floodFill(ff, m, (0, 0), 255)
-    filled = disc_mask | cv2.bitwise_not(ff)
-    obj = cv2.bitwise_and(filled, cv2.bitwise_not(bright))
-
-    # 3) Khử rìa lẻ tẻ rồi lấy đốm LỖ lớn nhất = con hàng.
-    kc = max(5, DET_DS // 140)
+    # 2) Khử nhiễu lấm tấm + nối liền thân con hàng rồi lấp cửa sổ sáng ở giữa.
+    kc = max(5, DET_DS // 100)
     ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kc, kc))
-    obj = cv2.morphologyEx(obj, cv2.MORPH_OPEN, ker)
-    best = _do_lon_nhat(obj)
-    if best is None or best[0] < MIN_AREA_F * DET_DS * DET_DS:
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, ker)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, ker)
+    mask = _lap_lo(mask)
+
+    # 3) Tách khối -> BỎ đốm chạm biên (vignette 4 góc), giữ đốm lớn nhất ở giữa.
+    n, lbl, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    A = DET_DS * DET_DS
+    best = None  # (area, x, y, ww, hh)
+    for i in range(1, n):
+        a = stats[i, cv2.CC_STAT_AREA]
+        if a < MIN_AREA_F * A:
+            continue
+        x, y, ww, hh = (stats[i, cv2.CC_STAT_LEFT], stats[i, cv2.CC_STAT_TOP],
+                        stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT])
+        # Con hàng nằm GIỮA nền trắng -> KHÔNG chạm biên; vignette góc thì CÓ.
+        if x <= 1 or y <= 1 or x + ww >= DET_DS - 1 or y + hh >= det_h - 1:
+            continue
+        if best is None or a > best[0]:
+            best = (a, x, y, ww, hh)
+
+    if best is None:
         return None
 
     _, x, y, ww, hh = best
@@ -160,3 +161,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
