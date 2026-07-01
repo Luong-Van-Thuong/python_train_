@@ -25,8 +25,8 @@ from tqdm import tqdm
 # --------------------------------------------------------------------------- #
 # Cấu hình mặc định (Đường dẫn chạy WSL2/Windows)
 # --------------------------------------------------------------------------- #
-DEFAULT_SRC = "/mnt/d/Images_/SIBV/A27/img_train/ng1"
-DEFAULT_OK = "/mnt/d/Images_/SIBV/A27/img_train/ok_"
+DEFAULT_SRC = "/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ng"
+DEFAULT_OK = "/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ok"
 DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet"
 DEFAULT_VAL_PREFIX = "pass"
 
@@ -231,7 +231,7 @@ def main():
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--tile", type=int, default=512)
     ap.add_argument("--overlap", type=float, default=0.20)
-    ap.add_argument("--val-ratio", type=float, default=0.2, help="Tỷ lệ chia validation (0 -> 1.0). Thiết lập 0 nếu muốn dồn 100% vào Train")
+    ap.add_argument("--val-ratio", type=float, default=0, help="Tỷ lệ chia validation (0 -> 1.0). Thiết lập 0 nếu muốn dồn 100% vào Train")
     ap.add_argument("--val-prefix", default=DEFAULT_VAL_PREFIX, help="Tiền tố ép ảnh vào val. Đặt '' để tắt hoàn toàn luồng ép buộc")
     ap.add_argument("--group-sep", default="")
     ap.add_argument("--bg-ratio", type=float, default=2.0)
@@ -270,7 +270,7 @@ def main():
         if args.val_ratio <= 0 and not args.val_prefix:
             return plist, []
 
-        forced_val = [p for p in plist if args.val_prefix and p[0].shape[0] and p[0].stem.lower().startswith(args.val_prefix.lower())]
+        forced_val = [p for p in plist if args.val_prefix and p[0].stem.lower().startswith(args.val_prefix.lower())]
         rest = [p for p in plist if p not in forced_val]
 
         if args.val_ratio <= 0:

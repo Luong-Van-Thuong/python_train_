@@ -2,7 +2,10 @@
 """
 train_unet.py
 =============
-Nâng cấp: Tự động Resume khi sập nguồn + Sửa lỗi sập thư mục + Cứu IoU lỗi bằng Weighted Loss.
+Nâng cấp chuẩn Tech Lead:
+1. Đồng bộ toán học: Ép Dice Loss bỏ qua nền, song sát cùng Weighted CE.
+2. Sửa bug Logic: Đảo thứ tự cập nhật best_iou trước khi đóng gói checkpoint.
+3. Phòng thủ hệ thống: Kiểm tra số lượng class_weights động bằng assert.
 """
 
 import argparse
@@ -115,7 +118,7 @@ def main():
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--project", default=DEFAULT_PROJECT)
-    ap.add_argument("--name", default="defect_unet")
+    ap.add_argument("--name", default="defect_unet_260701")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--resume", action="store_true", help="Bật cờ này để phục hồi train từ điểm gãy")
     args = ap.parse_args()
@@ -143,7 +146,7 @@ def main():
     print(f"[INFO] train={len(train_ds)} tile, val={len(val_ds)} tile")
 
     train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True,
-                              num_workers=args.workers, pin_memory=True, drop_last=True)
+                             num_workers=args.workers, pin_memory=True, drop_last=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=args.workers, pin_memory=True)
 
     model = smp.create_model(
@@ -151,12 +154,16 @@ def main():
         in_channels=3, classes=num_classes,
     ).to(device)
 
-    # --- ĐỘNG CƠ LOSS MỚI: PHẠT NẶNG NỀN, ÉP HỌC LỖI ÍT ---
-    # Class ID: 0: background, 1: ban, 2: burrs, 3: defo, 4: phong
-    # Gán trọng số phạt: Giảm nền xuống 0.2, đẩy các lớp lỗi lên cao gấp 5-10 lần
-    class_weights = torch.tensor([0.2, 2.0, 2.0, 1.5, 2.0], dtype=torch.float32).to(device)
+    # --- ĐỘNG CƠ LOSS SỬA ĐỔI: PHÒNG THỦ VÀ ĐỒNG BỘ TOÁN HỌC ---
+    weights_list = [0.2, 2.0, 2.0, 1.5, 2.0]
+    assert len(weights_list) == num_classes, (
+        f"Gãy logic: Khai báo {len(weights_list)} trọng số nhưng cấu hình hệ thống yêu cầu {num_classes} lớp!"
+    )
+    class_weights = torch.tensor(weights_list, dtype=torch.float32).to(device)
     ce_loss = nn.CrossEntropyLoss(weight=class_weights)
-    dice_loss = smp.losses.DiceLoss(mode="multiclass")
+    
+    # Ép Dice Loss bỏ qua lớp nền (class 0) để tránh lệch gradient do diện tích nền quá lớn
+    dice_loss = smp.losses.DiceLoss(mode="multiclass", classes=[i for i in range(1, num_classes)])
 
     def criterion(logits, target):
         return dice_loss(logits, target) + ce_loss(logits, target)
@@ -164,10 +171,8 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     
-    # Chuẩn hóa PyTorch 2026 API (loại bỏ cảnh báo cũ)
     scaler = torch.amp.GradScaler('cuda', enabled=(device.type == "cuda"))
 
-    # FIX TRIỆT ĐỂ: Tạo thư mục gốc an toàn tuyệt đối
     out_dir = Path(args.project) / args.name
     weights_dir = out_dir / "weights"
     weights_dir.mkdir(parents=True, exist_ok=True)
@@ -217,23 +222,21 @@ def main():
         print(f"  -> loss={avg_loss:.4f} | val mIoU={miou:.4f} | "
               f"IoU lỗi={defect_iou:.4f} | per-class={['%.3f' % v for v in iou_list]}")
 
-        # Gói trạng thái đồng bộ
+        # --- ĐẢO TRÌNH TỰ: CẬP NHẬT TRƯỚC KHI ĐÓNG GÓI CHECKPOINT ---
+        if defect_iou > best_iou:
+            best_iou = defect_iou
+            torch.save(model.state_dict(), weights_dir / "best.pt")
+            print(f"     [BEST] IoU lỗi mới = {best_iou:.4f} -> đã lưu best.pt")
+
         checkpoint_data = {
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "scheduler_state_dict": scheduler.state_dict(),
             "scaler_state_dict": scaler.state_dict() if (device.type == "cuda") else {},
-            "best_iou": best_iou
+            "best_iou": best_iou  # Giá trị đồng bộ chính xác tuyệt đối
         }
-        
-        # Ghi đè file trạng thái cuối liên tục (Đã bọc mkdir an toàn ở trên)
         torch.save(checkpoint_data, last_checkpoint_path)
-
-        if defect_iou > best_iou:
-            best_iou = defect_iou
-            torch.save(model.state_dict(), weights_dir / "best.pt")
-            print(f"     [BEST] IoU lỗi mới = {best_iou:.4f} -> đã lưu best.pt")
 
     cfg = {"arch": args.arch, "encoder": args.encoder, "num_classes": num_classes,
            "names": names, "mean": mean, "std": std, "tile": ds.get("tile")}
