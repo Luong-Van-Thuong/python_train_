@@ -145,9 +145,10 @@ cython_debug/
 .DS_Store
 Thumbs.db
 
-# Project-specific ignored folders
-data/
-sibv/
+# Project-specific ignored folders (NEO vào gốc repo bằng dấu / đầu —
+# tránh match nhầm src/data/ là folder MÃ NGUỒN, không phải dữ liệu)
+/data/
+/SIBV/
 
 # Model weights & training outputs (large binaries — không đưa lên git)
 *.pt
@@ -160,3 +161,17 @@ runs/
 # Dataset multitask sinh bởi chia_data_seg_obd.py (seg/obd) — không commit
 data_multitask/
 **/data_multitask/
+
+# Output khi chạy (log train, ảnh predict) — không commit
+logs/
+predict_out/
+
+# Ảnh (dataset + kết quả) — KHÔNG commit ảnh lên git
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tif
+*.tiff
+*.gif
+*.webp
