@@ -4,16 +4,21 @@ import os
 import cv2
 import numpy as np
 
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
 # =========================
 # Model
 # =========================
-model_path = "/mnt/d/python/mlcc/VisionProject/yolo11n_20260602_part1_images_960_vung_tu/weights/best.pt"
+model_path = P("/mnt/d/python/mlcc/VisionProject/yolo11n_20260602_part1_images_960_vung_tu/weights/best.pt")
 
 # =========================
 # Thư mục ảnh đầu vào / đầu ra
 # =========================
-image_dir = "/mnt/d/Images/JeaYoung/MLCC/image_"
-save_dir  = "/mnt/d/Images/JeaYoung/MLCC/test_result"
+image_dir = P("/mnt/d/Images/JeaYoung/MLCC/image_")
+save_dir  = P("/mnt/d/Images/JeaYoung/MLCC/test_result")
 os.makedirs(save_dir, exist_ok=True)
 
 # =========================

@@ -4,8 +4,10 @@ Dùng: python count_classes.py <thu_muc_dataset>  (mặc định data_imgs_unet)
 import sys, numpy as np, cv2, yaml
 from pathlib import Path
 
+sys.path.insert(0, next(str(_p) for _p in Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
 BASE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
-    "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet")
+    P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet"))
 with open(BASE / "dataset.yaml", "r", encoding="utf-8") as f:
     ds = yaml.safe_load(f)
 NAMES = ds.get("names", {i: str(i) for i in range(int(ds["num_classes"]))})

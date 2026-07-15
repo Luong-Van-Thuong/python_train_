@@ -12,9 +12,14 @@
 """
 import cv2, numpy as np, csv, glob, os
 
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
 # ============================== CẤU HÌNH =====================================
-INPUT_DIR    = "/mnt/d/Images_/SIBV/A26/260615_0/tesst"
-OUTPUT_DIR   = "/mnt/d/Images_/SIBV/A26/260615_0/tesst/ket_qua"
+INPUT_DIR    = P("/mnt/d/Images_/SIBV/A26/260615_0/tesst")
+OUTPUT_DIR   = P("/mnt/d/Images_/SIBV/A26/260615_0/tesst/ket_qua")
 MM_PER_PIXEL = 1.0            # <-- THAY bằng hệ số hiệu chuẩn thật (mm/pixel)
 
 # Mỗi zone:

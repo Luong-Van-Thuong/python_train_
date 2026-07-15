@@ -69,16 +69,21 @@
 
 from ultralytics import YOLO
 
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P, Pyaml
+
 
 def main():
     model = YOLO("yolo11n.pt")
 
     results = model.train(
-        data="/mnt/d/projects_/cong_ty/python_/train/data.yaml",
+        data=Pyaml("/mnt/d/projects_/cong_ty/python_/train/jeayoung/mlcc/data_vungtu/data.yaml"),
 
         epochs=150,
         # imgsz=960,
-         imgsz=960,
+         imgsz=512,
         device=0,
 
         batch=8,
@@ -112,18 +117,18 @@ def main():
         lr0=0.001,
         lrf=0.01,
 
-        project="/mnt/d/projects_/cong_ty/python_/train/SIBV/A26/",
-        name="yolo11n_960_260614_part1",
+        project=P("/mnt/d/projects_/cong_ty/python_/train/JeaYoung/MLCC/"),
+        name="yo_n_260715_1",
         exist_ok=True,
     )
 
-    best_model_path = "/mnt/d/projects_/cong_ty/python_/train/SIBV/A26/yolo11n_960_260614_part1/weights/best.pt"
+    best_model_path = P("/mnt/d/projects_/cong_ty/python_/train/JeaYoung/MLCC/yo_n_260715_1/weights/best.pt")
 
     export_model = YOLO(best_model_path)
 
     export_model.export(
         format="openvino",
-        imgsz=960,
+        imgsz=512,
         half=False,
         int8=False,
         dynamic=False,
@@ -134,32 +139,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-
-# from ultralytics import YOLO
-
-
-# def main():
-#     # Thay vì load model gốc, load last.pt để resume
-#     model = YOLO("/mnt/d/python/mlcc/VisionProject/yolo11n_20260602_part1_images_960/weights/last.pt")
-
-#     results = model.train(
-#         resume=True,   # <-- thêm dòng này, các tham số khác tự đọc từ checkpoint
-#     )
-
-#     best_model_path = "/mnt/d/python/mlcc/VisionProject/yolo11n_20260602_part1_images_960/weights/best.pt"
-
-#     export_model = YOLO(best_model_path)
-
-#     export_model.export(
-#         format="openvino",
-#         imgsz=960,
-#         half=False,
-#         int8=False,
-#         dynamic=False,
-#         nms=False,
-#     )
-
-
-# if __name__ == "__main__":
-#     main()

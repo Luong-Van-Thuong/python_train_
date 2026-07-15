@@ -31,9 +31,13 @@ import numpy as np
 import yaml
 from tqdm import tqdm
 
-DEFAULT_NG = "/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ng"
-DEFAULT_OK = "/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ok"
-DEFAULT_DATA = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet"
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+DEFAULT_NG = P("/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ng")
+DEFAULT_OK = P("/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ok")
+DEFAULT_DATA = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet")
 
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 

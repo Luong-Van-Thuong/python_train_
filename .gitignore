@@ -166,6 +166,9 @@ data_multitask/
 logs/
 predict_out/
 
+# Bản data.yaml chuẩn hoá đường dẫn do pathfix.Pyaml() sinh ra lúc chạy
+*.__local__.yaml
+
 # Ảnh (dataset + kết quả) — KHÔNG commit ảnh lên git
 *.png
 *.jpg

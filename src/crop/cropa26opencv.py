@@ -39,10 +39,14 @@ import numpy as np
 # (Nếu chạy trên Windows thuần thì đổi lại thành r"D:/Images_/SIBV/...")
 #
 # Thư mục chứa TẤT CẢ ảnh cần cắt
-INPUT_DIR  = "/mnt/d/Images_/SIBV/A26/img_train/OK"
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+INPUT_DIR  = P("/mnt/d/Images_/SIBV/A26/img_train/OK")
 
 # Thư mục để lưu ảnh đã cắt (tự tạo nếu chưa có)
-OUTPUT_DIR = "/mnt/d/Images_/SIBV/A26/img_train/OK_crop"
+OUTPUT_DIR = P("/mnt/d/Images_/SIBV/A26/img_train/OK_crop")
 
 # Lưới linh kiện trên mỗi ảnh: 2 hàng x 2 cột = 4 linh kiện
 GRID_ROWS = 2

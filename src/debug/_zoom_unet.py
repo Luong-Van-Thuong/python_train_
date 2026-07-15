@@ -4,11 +4,15 @@ from pathlib import Path
 import numpy as np, cv2, yaml, torch
 import segmentation_models_pytorch as smp
 
-CFG="/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml"
-W2="/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet2/weights/best.pt"
-W1="/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/weights/best.pt"
-OUT="/mnt/d/Images_/SIBV/A27/_view_out"
-IMG="/mnt/d/Images_/SIBV/A27/test3/Image__2026-06-22__16-06-02_obj_2.bmp"
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+CFG=P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml")
+W2=P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet2/weights/best.pt")
+W1=P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/weights/best.pt")
+OUT=P("/mnt/d/Images_/SIBV/A27/_view_out")
+IMG=P("/mnt/d/Images_/SIBV/A27/test3/Image__2026-06-22__16-06-02_obj_2.bmp")
 
 def imread_u(p):
     d=np.fromfile(str(p),np.uint8); return cv2.imdecode(d,cv2.IMREAD_COLOR)

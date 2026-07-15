@@ -4,6 +4,11 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
 class YoloObbExtractor:
     def __init__(self, model_path):
         """
@@ -94,10 +99,10 @@ class YoloObbExtractor:
 # ==========================================
 if __name__ == "__main__":
     # Đường dẫn WSL: ổ D:\ của Windows map sang /mnt/d/
-    MODEL_BEST_PT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/yolo_odb_detect/weights/best.pt"
+    MODEL_BEST_PT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/yolo_odb_detect/weights/best.pt")
 
-    SOURCE_DIRECTORY = "/mnt/d/Images_/SIBV/A27/img_train/260622/test"  # Thư mục chứa ảnh gốc .bmp
-    DEST_DIRECTORY = "/mnt/d/Images_/SIBV/A27/test"  # Thư mục lưu kết quả cắt
+    SOURCE_DIRECTORY = P("/mnt/d/Images_/SIBV/A27/img_train/260622/test")  # Thư mục chứa ảnh gốc .bmp
+    DEST_DIRECTORY = P("/mnt/d/Images_/SIBV/A27/test")  # Thư mục lưu kết quả cắt
 
     # Khởi chạy extractor
     extractor = YoloObbExtractor(model_path=MODEL_BEST_PT)

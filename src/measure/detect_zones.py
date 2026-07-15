@@ -1,6 +1,10 @@
 import cv2, numpy as np
 
-img = cv2.imread("/mnt/d/Images_/SIBV/A26/260615_0/tesst/Image__2026-06-15__11-23-31_obj_0.bmp")
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+img = cv2.imread(P("/mnt/d/Images_/SIBV/A26/260615_0/tesst/Image__2026-06-15__11-23-31_obj_0.bmp"))
 B, G, R = img[:, :, 0].astype(int), img[:, :, 1].astype(int), img[:, :, 2].astype(int)
 green = ((G > 140) & (R < 110) & (B < 110)).astype(np.uint8)
 red   = ((R > 150) & (G < 90) & (B < 90)).astype(np.uint8)
