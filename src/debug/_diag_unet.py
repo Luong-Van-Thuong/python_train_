@@ -8,9 +8,12 @@ import yaml
 import torch
 import segmentation_models_pytorch as smp
 
-CFG = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml"
-WEIGHTS = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet2/weights/best.pt"
-SRC_DIR = "/mnt/d/Images_/SIBV/A27/test3"
+sys.path.insert(0, next(str(_p) for _p in Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+CFG = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml")
+WEIGHTS = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet2/weights/best.pt")
+SRC_DIR = P("/mnt/d/Images_/SIBV/A27/test3")
 
 
 def imread_unicode(path, flags=cv2.IMREAD_COLOR):

@@ -39,10 +39,14 @@ from tqdm import tqdm
 # --------------------------------------------------------------------------- #
 # Cấu hình mặc định (có thể sửa trực tiếp hoặc truyền qua dòng lệnh)
 # --------------------------------------------------------------------------- #
-# Chạy trong WSL2: ổ D:\ của Windows map sang /mnt/d/
-DEFAULT_SRC = "/mnt/d/Images_/SIBV/A26/260615_0/ng_"
-DEFAULT_OK = "/mnt/d/Images_/SIBV/A26/260615_0/ok_"  # ảnh OK, KHÔNG có .json
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/sibv/a26/data"
+# Chạy trong WSL2: ổ D:\ của Windows map sang /mnt/d/  (Windows thuần: pathfix tự đổi -> D:/)
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+DEFAULT_SRC = P("/mnt/d/Images_/SIBV/A26/260615_0/ng_")
+DEFAULT_OK = P("/mnt/d/Images_/SIBV/A26/260615_0/ok_")  # ảnh OK, KHÔNG có .json
+DEFAULT_OUT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/sibv/a26/data")
 
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 

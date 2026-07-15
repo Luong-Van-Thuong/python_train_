@@ -12,14 +12,19 @@ import numpy as np
 from sahi import AutoDetectionModel
 from sahi.predict import get_sliced_prediction
 
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
 # ==============================================================================
 # CONFIGURATION ZONE - ÔNG THAY ĐỔI ĐƯỜNG DẪN TEST TẠI ĐÂY
 # ==============================================================================
 # Biến chứa đường dẫn ảnh test riêng, dễ dàng thay đổi khi debug trong WSL2
-DEBUG_SOURCE = "/mnt/d/Images_/SIBV/A26/test/"
+DEBUG_SOURCE = P("/mnt/d/Images_/SIBV/A26/test/")
 
 DEFAULT_WEIGHTS = "sibv/a26/results/260622/defect_seg2/weights/best.pt"
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/predict_out/folder_data_AI_tra_ve"
+DEFAULT_OUT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/predict_out/folder_data_AI_tra_ve")
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 # ==============================================================================
 

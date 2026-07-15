@@ -4,12 +4,16 @@ from pathlib import Path
 import numpy as np, cv2, yaml, torch
 import segmentation_models_pytorch as smp
 
-CFG = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml"
-SRC_DIR = "/mnt/d/Images_/SIBV/A27/test3"
-OUT = "/mnt/d/Images_/SIBV/A27/_view_out"
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+CFG = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml")
+SRC_DIR = P("/mnt/d/Images_/SIBV/A27/test3")
+OUT = P("/mnt/d/Images_/SIBV/A27/_view_out")
 MODELS = {
-    "unet2": "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet2/weights/best.pt",
-    "unet1": "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/weights/best.pt",
+    "unet2": P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet2/weights/best.pt"),
+    "unet1": P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/weights/best.pt"),
 }
 COLORS = [(0,0,0),(0,0,255),(0,165,255),(0,255,0),(255,0,0),(255,0,255),(0,255,255)]
 

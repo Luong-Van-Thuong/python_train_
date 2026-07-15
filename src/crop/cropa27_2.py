@@ -34,8 +34,12 @@ import numpy as np
 # ============================================================
 # 1) CẤU HÌNH  -  chỉ cần chỉnh ở đây
 # ============================================================
-INPUT_DIR  = "/mnt/d/Images_/SIBV/A27/260629"
-OUTPUT_DIR = "/mnt/d/Images_/SIBV/A27/260629_crop"
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+INPUT_DIR  = P("/mnt/d/Images_/SIBV/A27/260629")
+OUTPUT_DIR = P("/mnt/d/Images_/SIBV/A27/260629_crop")
 
 # Ảnh gốc rất to -> thu nhỏ về DET_DS để dò cho nhanh rồi quy ngược toạ độ.
 DET_DS     = 1000      # bề rộng ảnh dò

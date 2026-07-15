@@ -57,9 +57,13 @@ from tqdm import tqdm
 # Cấu hình mặc định (sửa trực tiếp hoặc truyền qua dòng lệnh)
 # Chạy WSL2: ổ D:\ map sang /mnt/d/
 # --------------------------------------------------------------------------- #
-DEFAULT_SRC = "/mnt/d/Images_/SIBV/A26/img_train/ng_"
-DEFAULT_OK = "/mnt/d/Images_/SIBV/A26/img_train/ok_"   # thường là ảnh OK (nền)
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data_imgs"
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+DEFAULT_SRC = P("/mnt/d/Images_/JeaYoung/MLCC/Data/vung_tu")
+DEFAULT_OK = P("/mnt/d/Images_/JeaYoung/MLCC/Data/vung_tu")   # thường là ảnh OK (nền)
+DEFAULT_OUT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/JeaYoung/MLCC/data_imgs")
 
 # Ảnh có TÊN bắt đầu bằng tiền tố này -> LUÔN đưa vào val (để test/đánh giá mô
 # hình), KHÔNG bao giờ vào train. Đặt "" để tắt tính năng này.

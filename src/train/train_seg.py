@@ -21,8 +21,13 @@ Lưu ý về defect NHỎ:
 import argparse
 from ultralytics import YOLO
 
-DEFAULT_DATA = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data_imgs/seg/data.yaml"
-DEFAULT_PROJECT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/results/260622"
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P, Pyaml
+
+DEFAULT_DATA = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/data_imgs/seg/data.yaml")
+DEFAULT_PROJECT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/results/260622")
 
 
 def main():
@@ -46,7 +51,7 @@ def main():
     model = YOLO(args.model)
 
     model.train(
-        data=args.data,
+        data=Pyaml(args.data),  # chuẩn hoá khoá 'path' bên trong yaml theo môi trường
         imgsz=args.imgsz,
         epochs=args.epochs,
         batch=args.batch,

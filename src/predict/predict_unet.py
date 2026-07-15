@@ -14,13 +14,18 @@ import yaml
 import torch
 import segmentation_models_pytorch as smp
 
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
 # ==============================================================================
 # CONFIGURATION ZONE
 # ==============================================================================
-DEBUG_SOURCE = "/mnt/d/Images_/SIBV/A27/test/"
-DEFAULT_CFG = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml"
-DEFAULT_WEIGHTS = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/weights/best.pt"
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/predict_out/folder_unet_AI_tra_ve_"
+DEBUG_SOURCE = P("/mnt/d/Images_/SIBV/A27/test/")
+DEFAULT_CFG = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/model_cfg.yaml")
+DEFAULT_WEIGHTS = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet/defect_unet/weights/best.pt")
+DEFAULT_OUT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/predict_out/folder_unet_AI_tra_ve_")
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
 COLORS = [

@@ -23,8 +23,13 @@ from tqdm import tqdm
 import segmentation_models_pytorch as smp
 from segmentation_models_pytorch.encoders import get_preprocessing_params
 
-DEFAULT_DATA = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet/dataset.yaml"
-DEFAULT_PROJECT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet"
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+DEFAULT_DATA = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet/dataset.yaml")
+DEFAULT_PROJECT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/results/unet")
 
 
 def imread_unicode(path, flags=cv2.IMREAD_COLOR):
@@ -197,7 +202,7 @@ def main():
 
     with open(args.data, "r", encoding="utf-8") as f:
         ds = yaml.safe_load(f)
-    base = Path(ds["path"])
+    base = Path(P(ds["path"]))  # 'path' trong yaml có thể là dạng WSL/Windows -> tự đổi
     num_classes = int(ds["num_classes"])
     names = ds.get("names", {})
     print(f"[INFO] num_classes = {num_classes} (gồm nền). Lớp: {names}")

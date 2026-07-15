@@ -25,9 +25,13 @@ from tqdm import tqdm
 # --------------------------------------------------------------------------- #
 # Cấu hình mặc định (Đường dẫn chạy WSL2/Windows)
 # --------------------------------------------------------------------------- #
-DEFAULT_SRC = "/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ng"
-DEFAULT_OK = "/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ok"
-DEFAULT_OUT = "/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet"
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+DEFAULT_SRC = P("/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ng")
+DEFAULT_OK = P("/mnt/d/Images_/SIBV/A27/260629_crop/img_train/ok")
+DEFAULT_OUT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A27/data_imgs_unet")
 DEFAULT_VAL_PREFIX = "pass"
 
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")

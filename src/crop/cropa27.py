@@ -34,9 +34,13 @@ import numpy as np
 # 1) CẤU HÌNH  -  chỉ cần chỉnh ở đây
 # ============================================================
 
-# Đường dẫn kiểu WSL2: ổ Windows D:\ -> /mnt/d, C:\ -> /mnt/c ...
-INPUT_DIR  = "/mnt/d/Images_/SIBV/A27/img_train/260622/test"
-OUTPUT_DIR = "/mnt/d/Images_/SIBV/A27/test"
+# Đường dẫn kiểu WSL2: ổ Windows D:\ -> /mnt/d ... (Windows thuần: pathfix tự đổi -> D:/)
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
+INPUT_DIR  = P("/mnt/d/Images_/SIBV/A27/img_train/260622/test")
+OUTPUT_DIR = P("/mnt/d/Images_/SIBV/A27/test")
 
 # Số con hàng tối đa trên 1 khay (nếu dò ra nhiều hơn -> giữ các đốm lớn nhất)
 MAX_PARTS = 4
