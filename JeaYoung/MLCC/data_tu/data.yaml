@@ -1,0 +1,5 @@
+path: /mnt/d/Projects_/Cong_Ty/Python_/train/JeaYoung/MLCC/data_tu
+train: images/train
+val: images/val
+names:
+  0: d
