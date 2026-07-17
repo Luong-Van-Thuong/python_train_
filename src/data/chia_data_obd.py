@@ -39,8 +39,8 @@ _sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents
 from pathfix import P
 
 # --------------------------------------------------------------- cau hinh
-DEFAULT_SRC = P("/mnt/d/Images_/JeaYoung/MLCC/Data/vung_tu")
-DEFAULT_OUT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/MLCC/data_vungtu")
+DEFAULT_SRC = P("/mnt/d/Images_/JeaYoung/MLCC/Data/tu")
+DEFAULT_OUT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/JeaYoung/MLCC/data_tu")
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
 
 

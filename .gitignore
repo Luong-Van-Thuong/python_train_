@@ -178,3 +178,7 @@ predict_out/
 *.tiff
 *.gif
 *.webp
+
+# Nhãn YOLO (.txt toạ độ label) + cache — là DỮ LIỆU đi kèm ảnh, không commit
+**/labels/
+*.cache
