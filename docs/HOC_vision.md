@@ -2,6 +2,7 @@
 
 > File tra cứu riêng, tách khỏi `HOC_unet_loi_nho_6px.md` (file đó học sâu về UNet lỗi nhỏ).
 > Mục tiêu file này: có **bản đồ liền mạch** để hết ngợp, và **quy trình 3 ngày** để không phải nghĩ lại từ đầu mỗi dự án.
+> Đang ở đâu / đang làm gì / còn nợ gì → xem `TIEN_DO.md` (file này chỉ để TRA bản đồ, không log tiến độ).
 
 ---
 
