@@ -5,12 +5,17 @@ import random
 import shutil
 import yaml
 
+# --- cầu nối đường dẫn WSL2 <-> Windows Anaconda (xem pathfix.py ở gốc repo) ---
+import sys as _sys, pathlib as _pl
+_sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents if (_p / "pathfix.py").exists()))
+from pathfix import P
+
 
 # ==========================
-# CONFIG
+# CONFIG  —  LUÔN dùng gạch XUÔI '/' và bọc P() (xem pathfix.py)
 # ==========================
-SOURCE_DIR = r"D:\Images\JeaYoung\MLCC\Data\tu"      # folder chứa cả ảnh + json LabelMe
-OUTPUT_DIR = r"D:\Python\mlcc\data"          # folder YOLO output
+SOURCE_DIR = P("/mnt/d/Images/JeaYoung/MLCC/Data/tu")   # folder chứa cả ảnh + json LabelMe
+OUTPUT_DIR = P("/mnt/d/Python/mlcc/data")               # folder YOLO output
 
 VAL_SIZE = 0.2                                  # 20% ảnh làm validation
 RANDOM_SEED = 42                                # đổi số này nếu muốn shuffle khác

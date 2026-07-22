@@ -19,6 +19,13 @@ CÁCH DÙNG trong script:
 Bạn viết đường dẫn theo KIỂU NÀO CŨNG ĐƯỢC ('/mnt/d/...' hoặc 'D:/...'),
 P() sẽ chuyển về đúng dạng cho môi trường hiện tại.
 
+>>> QUY TẮC VÀNG KHI GÕ ĐƯỜNG DẪN (để KHÔNG bao giờ dính lỗi băm chuỗi):
+      DÙNG DẤU GẠCH XUÔI  '/'  —  ví dụ  P("D:/Projects_/.../best.pt")
+    KHÔNG dùng dấu gạch ngược '\' trong chuỗi thường, vì Python coi '\t' '\r'
+    '\n'... là ký tự đặc biệt và LÀM HỎNG chuỗi TRƯỚC KHI P() kịp xử lý.
+    Nếu bắt buộc phải dán path Windows có '\', hãy thêm 'r' ở đầu:  r"D:\a\b".
+    P() vẫn tự đổi '\' -> '/' cho bạn, nhưng chỉ cứu được khi chuỗi chưa bị băm.
+
 TỰ CHUYỂN CHẾ ĐỘ (khi cần ép buộc) — đặt biến môi trường VISION_PATH_MODE:
     auto  : (mặc định) Windows -> 'win', còn lại (WSL/Linux) -> 'wsl'
     win   : ép ra dạng Windows  'D:/...'
@@ -60,29 +67,36 @@ def P(path):
     """Chuẩn hoá 1 đường dẫn về đúng dạng cho môi trường hiện tại.
 
     - Nhận cả '/mnt/d/...' lẫn 'D:/...' (hoặc 'D:\\...').
+    - Tự bỏ khoảng trắng thừa, bỏ dấu nháy lỡ dán vào, đổi '\\' -> '/'.
     - Trả về str đã dịch. None -> None. Đường dẫn tương đối / URL giữ nguyên.
     """
     if path is None:
         return path
-    s = str(path)
+    # bỏ khoảng trắng + dấu nháy lỡ copy vào 2 đầu
+    s = str(path).strip().strip('"').strip("'")
     if MODE == "off":
         return s
+
+    # Đổi mọi '\' -> '/' (Windows chấp nhận '/'); nhờ vậy dù lỡ dán path kiểu
+    # r"D:\a\b" thì vẫn khớp regex và chạy được ở CẢ HAI môi trường.
+    s = s.replace("\\", "/")
 
     if MODE == "win":
         m = _MNT_RE.match(s)
         if m:
             drive = m.group(1).upper()
-            rest = (m.group(2) or "").lstrip("/\\")
+            rest = (m.group(2) or "").lstrip("/")
             return _clean(f"{drive}:/{rest}")
-        return s
+        # đã là 'D:/...' hoặc đường tương đối -> trả bản đã chuẩn hoá gạch chéo
+        return _clean(s)
 
     # MODE == "wsl"
     m = _DRIVE_RE.match(s)
     if m:
         drive = m.group(1).lower()
-        rest = m.group(2).replace("\\", "/").lstrip("/")
+        rest = m.group(2).lstrip("/")
         return _clean(f"/mnt/{drive}/{rest}")
-    return s
+    return _clean(s)
 
 
 def _clean(path: str) -> str:

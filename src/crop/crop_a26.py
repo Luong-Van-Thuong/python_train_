@@ -71,7 +71,7 @@ class YoloObbExtractor:
 
                 # Tính diện tích object (pixel²) và bỏ qua nếu quá nhỏ
                 obj_area = (x_end - x_start) * (y_end - y_start)
-                if obj_area < 450000:
+                if obj_area < 20000:
                     print(f"[SKIP] Object #{obj_idx} trong {base_name}: diện tích = {obj_area}px² (< 10000)")
                     continue
 
@@ -92,11 +92,12 @@ class YoloObbExtractor:
 # THỰC THI CHƯƠNG TRÌNH
 # ==========================================
 if __name__ == "__main__":
-    # Cấu hình chuẩn 100% định dạng WSL2 (Linux) - Đã sửa chữ 'd' viết thường và dấu sụt xuôi '/'
-    MODEL_BEST_PT = P("/mnt/d/Projects_/Cong_Ty/Python_/train/SIBV/A26/yolo11n_960_260614_part1/weights/best.pt")
+    # LƯU Ý: LUÔN dùng dấu gạch XUÔI '/' và bọc P() (xem pathfix.py).
+    # KHÔNG dùng '\' — Python băm '\t'/'\r'/'\b' làm hỏng chuỗi trước khi P() xử lý.
+    MODEL_BEST_PT = P(r"D:\Projects_\Cong_Ty\Python_\train\JeaYoung\MLCC\results\yo_n_260715_1_vungtu\weights\best.pt")
 
-    SOURCE_DIRECTORY = P("/mnt/d/Images_/SIBV/A26/img_train/ng")
-    DEST_DIRECTORY = P("/mnt/d/Images_/SIBV/A26/img_train/ng_")
+    SOURCE_DIRECTORY = P("/mnt/d/Images_/JeaYoung/MLCC/image_")
+    DEST_DIRECTORY = P("/mnt/d/Images_/JeaYoung/MLCC/image_crop")
 
     # Khởi chạy extractor
     extractor = YoloObbExtractor(model_path=MODEL_BEST_PT)

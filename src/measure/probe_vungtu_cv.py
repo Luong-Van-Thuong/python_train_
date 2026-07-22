@@ -11,6 +11,7 @@ Ket hop: (vung NET) ∩ (vung TOI) ~ than tu. Sinh ung vien tu mask do,
 cham diem theo shape-prior + nang luong vien + specular + do toi, chon 1 box
 tot nhat (moi anh chi 1 tu) roi so IoU voi GT.
 
+
 Muc dich: RA CON SO de quyet dinh classical du hay bat buoc YOLO.
 KHONG phai giai phap cuoi — chi la baseline do luong.
 
