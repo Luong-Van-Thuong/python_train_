@@ -29,11 +29,15 @@ from pathfix import P
 # ==============================================================================
 # CONFIGURATION ZONE - THAY ĐỔI ĐƯỜNG DẪN TEST TẠI ĐÂY
 # ==============================================================================
-DEBUG_SOURCE = P("/mnt/d/Images_/SIBV/A26/260615_0/tesst/Image__2026-06-16__11-50-50_obj_0.bmp")
-
-DEFAULT_WEIGHTS = "sibv/a26/result/defect_obd/weights/best.pt"
-DEFAULT_OUT = P("/mnt/d/Projects_/Cong_Ty/Python_/predict_out/folder_data_AI_obd")
+# LƯU Ý: LUÔN dùng dấu gạch XUÔI '/' và bọc trong P() (xem pathfix.py).
+DEBUG_SOURCE    = P(r"D:\Images_\JeaYoung\MLCC\image_crop")
+DEFAULT_WEIGHTS = P(r"D:\Projects_\Cong_Ty\Python_\train\JeaYoung\MLCC\results\yo_n_260715_1_tu\weights\best.pt")
+DEFAULT_OUT     = P(r"D:\Images_\JeaYoung\MLCC\results")
 IMG_EXTS = (".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff")
+
+# Ngưỡng diện tích A (đơn vị: pixel^2). Chỉ giữ bbox có diện tích LỚN HƠN A;
+# bbox nhỏ hơn/bằng A bị coi là nhiễu và bỏ qua. Đặt 0 để tắt lọc.
+MIN_AREA = 1
 # ==============================================================================
 
 
@@ -65,24 +69,27 @@ def main():
     ap.add_argument("--source", default=None, help="Đường dẫn ảnh hoặc thư mục ảnh test")
     ap.add_argument("--weights", default=DEFAULT_WEIGHTS, help="Đường dẫn file best.pt (model DET)")
     ap.add_argument("--out", default=DEFAULT_OUT, help="Thư mục xuất kết quả")
-    ap.add_argument("--tile", type=int, default=640)
+    ap.add_argument("--tile", type=int, default=200)
     ap.add_argument("--overlap", type=float, default=0.2)
-    ap.add_argument("--conf", type=float, default=0.25)
+    ap.add_argument("--conf", type=float, default=0.4)
+    ap.add_argument("--min-area", type=float, default=MIN_AREA,
+                    help="Diện tích A (px^2): chỉ giữ bbox có diện tích LỚN HƠN A. 0 = tắt lọc")
     ap.add_argument("--device", default="cuda:0")
     args = ap.parse_args()
 
-    source_target = args.source if args.source is not None else DEBUG_SOURCE
+    # Cho phép truyền --source/--weights/--out kiểu Windows hay WSL đều được.
+    source_target = P(args.source) if args.source is not None else DEBUG_SOURCE
 
     if not source_target:
         print("[LỖI CHÍ MẠNG] Nguồn ảnh trống! Hãy cấu hình DEBUG_SOURCE hoặc truyền --source.")
         return
 
-    weight_path = Path(args.weights)
+    weight_path = Path(P(args.weights))
     if not weight_path.exists():
         print(f"[LỖI CHÍ MẠNG] Không tìm thấy file Weights tại: {weight_path.resolve()}")
         return
 
-    out_dir = Path(args.out)
+    out_dir = Path(P(args.out))
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[INFO] Khởi tạo model SAHI (DET) trên target: {source_target}")
@@ -124,10 +131,17 @@ def main():
 
         vis = img.copy()
         lines = []
+        skipped_small = 0
         for o in preds:
             x1, y1, x2, y2 = map(int, o.bbox.to_xyxy())
             name = o.category.name
             conf = o.score.value
+
+            # ĐIỀU KIỆN DIỆN TÍCH: chỉ giữ bbox có diện tích LỚN HƠN A (args.min_area)
+            area = (x2 - x1) * (y2 - y1)
+            if args.min_area > 0 and area <= args.min_area:
+                skipped_small += 1
+                continue
 
             color = (0, 0, 255) if name == "thieu_nhua" else (0, 165, 255)
 
@@ -137,6 +151,11 @@ def main():
 
             # DET không có mask -> chỉ ghi bbox (giữ đúng định dạng predict_seg.py)
             lines.append(f"{name} {conf:.4f} {x1} {y1} {x2} {y2}")
+
+            print(f"(ok bbox diện tích  A={area})")
+
+        if skipped_small:
+            print(f"   (bỏ {skipped_small} bbox diện tích <= A={args.min_area:g} px^2)")
 
         imwrite_unicode(out_dir / f"{f.stem}_pred.png", vis, ".png")
         with open(out_dir / f"{f.stem}.txt", "w", encoding="utf-8") as fh:
