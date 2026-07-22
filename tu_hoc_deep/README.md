@@ -18,6 +18,11 @@ python train_kolektorsdd2.py               # train UNet trên data vừa tạo
 Mặc định đọc `C:/THUONG/Images/KolektorSDD2`. Đổi nguồn bằng `--src`, đổi kích thước resize bằng
 `--size WxH` (phải chia hết 32).
 
+`chia_data_kolektorsdd2.py` tự tách `train/` gốc thành train+val (mặc định 90/10, đổi bằng
+`--val-ratio`, seed cố định `--seed` để tách lại y hệt). `test/` gốc giữ nguyên thành 1 split `test`
+riêng — đây là bộ holdout thật, `train_kolektorsdd2.py` không đụng tới lúc train. Xem vì sao:
+`../docs/HOC_generalization_overfitting.md` mục 4-5.
+
 ## Vì sao có `train_kolektorsdd2.py` riêng thay vì dùng `train_unet.py`
 
 `train_unet.py` hard-code `weights_list` 5 phần tử cho đúng bài 4-lỗi của công ty — chạy thẳng với

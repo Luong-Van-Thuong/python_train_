@@ -41,6 +41,12 @@ công ty) — thay vào đó 2 file riêng:
   thước cố định chia hết 32 (mặc định 224×640 — `INTER_LINEAR` cho ảnh, **`INTER_NEAREST` cho mask**),
   remap 0/255 → 0/1, ghi `images/`, `masks/`, `dataset.yaml` (`num_classes: 2`,
   `names: {0: background, 1: defect}`).
+  **Sửa 2026-07-21 (bản đầu SAI):** bản đầu map thẳng `test/` gốc (bộ đánh giá chính thức) thành `val`
+  — mà `val` lại dùng để chọn `best.pt` trong lúc train, làm bẩn bộ test (không còn holdout thật). Bản
+  sửa: chỉ tách `train/` gốc (2332 ảnh) thành train+val (mặc định 90/10, `--val-ratio`, `--seed 42` để
+  tách lại y hệt), còn `test/` gốc (1004 ảnh) giữ nguyên thành 1 split `test` riêng, ghi vào
+  `dataset.yaml` nhưng `train_kolektorsdd2.py` không đọc key này — không đụng tới lúc train. Chi tiết
+  lý do + hệ quả: `HOC_generalization_overfitting.md` mục 4-5.
 - `tu_hoc_deep/train_kolektorsdd2.py` — bản riêng của `train_unet.py`, giống hệt kiến trúc/loss/metric/
   resume đã học ở Bài 1-9, chỉ khác: `weights_list` SINH TỰ ĐỘNG theo `num_classes`
   (`[0.2] + [2.0]*(num_classes-1)`) thay vì hard-code 5 phần tử — không vỡ assert với data 2 lớp, không
@@ -60,7 +66,11 @@ KolektorSDD2 dùng kiến trúc khác hẳn (2 mạng, mixed supervision) và ch
 `split_weakly_*.pyb`. Bài tập đọc-paper-chủ-động + tái hiện lại → `HOC_paper_kolektorsdd2_mixed_supervision.md`.
 
 ## 6. Còn nợ
-- [ ] Chạy thử thật, so log với kinh nghiệm Bài 9 (soi phân bố lớp train/val TRƯỚC khi đổ lỗi model —
-      KolektorSDD2 mất cân bằng nặng, đúng bẫy đã gặp ở Bài 9: đa số ảnh không lỗi).
+- [ ] Chạy lại từ đầu với split đã sửa (mục 4) — split cũ (trước 2026-07-21) không còn dùng được, phải
+      chạy lại `chia_data_kolektorsdd2.py` rồi `train_kolektorsdd2.py`.
 - [ ] So recall/F1 object-level đạt được với kỳ vọng thực tế — mục đích là thấy CÙNG 1 kỹ thuật áp dụng
       lên data khác thì số liệu khác nhau ra sao, không phải để đạt SOTA.
+- [ ] Soi phân bố lớp train/val TRƯỚC khi đổ lỗi model (kinh nghiệm Bài 9) — KolektorSDD2 mất cân bằng
+      nặng, đúng bẫy đã gặp ở Bài 9: đa số ảnh không lỗi.
+- [ ] Viết script đánh giá riêng chạy trên `images/test`/`masks/test` (holdout thật, chưa từng dùng lúc
+      train) sau khi có `best.pt` — chưa có script này. → `HOC_generalization_overfitting.md` mục 6.

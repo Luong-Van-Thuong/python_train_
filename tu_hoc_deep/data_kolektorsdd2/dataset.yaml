@@ -2,9 +2,11 @@ path: C:\THUONG\Code\Python_Train\python_cong_ty\python_train_\tu_hoc_deep\data_
 images:
   train: images/train
   val: images/val
+  test: images/test
 masks:
   train: masks/train
   val: masks/val
+  test: masks/test
 num_classes: 2
 names:
   0: background

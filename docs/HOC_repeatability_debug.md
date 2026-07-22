@@ -23,7 +23,20 @@ Công ty là vendor của Samsung. Yêu cầu: đo đạc (measurement) và insp
   nhận được là **0.03mm** → sai lệch giữa các lần chạy còn LỚN HƠN cả dung sai → hệ thống chưa dùng được
   ở mức chính xác này, bất kể model "đúng trung bình" hay không.
 
-## 3. Round 1 — câu hỏi chẩn đoán (ĐANG TRẢ LỜI, chưa có đáp án)
+## 3. Round 1 — câu hỏi chẩn đoán (Q1 trả lời một phần 2026-07-21, Q2-5 ĐANG TRẢ LỜI)
+
+**Cập nhật 2026-07-21 — quan sát thật đã có cho Q1:**
+- Cùng 1 **file ảnh cố định**, chạy lại nhiều lần → **Bài toán B (NG/OK)** ổn định, không đổi.
+- Chạy **hàng thật** (ảnh chụp lại mỗi lần, cơ khí khá ổn định nhưng vẫn rung/ánh sáng lệch nhẹ) →
+  **NG/OK có đổi**.
+- Cùng 1 file ảnh cố định, chạy lại nhiều lần → **Bài toán A (đo mm)** VẪN CÓ SAI SỐ (dù nhỏ) — khác
+  với B, đây là tín hiệu bất ổn phần mềm thật, không giải thích được bằng "ảnh chụp khác nhau" vì ảnh
+  y hệt nhau.
+- Buổi này KHÔNG kịp làm bước tiếp theo (so mask 2-3 lần chạy trên cùng ảnh, xem bit-identical không —
+  câu hỏi gốc số 5) vì phiên rẽ nhánh sang bài toán generalization (xem `HOC_generalization_overfitting.md`).
+  Khi quay lại: làm bước so mask này trước cho Bài toán A.
+- "Ăn vào background" được nhắc tới nhưng CHƯA xác định là lỗi hệ thống độc lập hay 1 phần của
+  repeatability — PARKED, hỏi lại khi quay lại thread này.
 
 Mục tiêu: khoanh vùng nguyên nhân nằm ở tầng nào — chế độ model, GPU/thuật toán không xác định
 (non-determinism), ngưỡng quyết định nhạy biên, hay tầng đo (measurement) kế thừa bất ổn từ tầng DL.

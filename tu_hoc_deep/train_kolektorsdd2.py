@@ -35,7 +35,7 @@ _sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents 
 from pathfix import P
 
 DEFAULT_DATA = Path(__file__).parent / "data_kolektorsdd2" / "dataset.yaml"
-DEFAULT_PROJECT = Path(__file__).parent / "results"
+DEFAULT_PROJECT = Path(__file__).parent / "results_260721"
 
 
 def imread_unicode(path, flags=cv2.IMREAD_COLOR):
@@ -169,7 +169,7 @@ def main():
     ap.add_argument("--data", default=str(DEFAULT_DATA), help="Đường dẫn dataset.yaml")
     ap.add_argument("--arch", default="Unet")
     ap.add_argument("--encoder", default="resnet34")
-    ap.add_argument("--epochs", type=int, default=60)
+    ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--workers", type=int, default=4)
