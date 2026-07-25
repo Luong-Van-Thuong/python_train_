@@ -1,0 +1,17 @@
+arch: Unet
+encoder: resnet34
+num_classes: 2
+names:
+  0: background
+  1: defect
+mean:
+- 123.675
+- 116.28
+- 103.53
+std:
+- 58.395
+- 57.120000000000005
+- 57.375
+tile:
+- 640
+- 224

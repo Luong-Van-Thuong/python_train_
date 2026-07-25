@@ -55,16 +55,22 @@ Mỗi epoch trong `train_kolektorsdd2.py` (dòng 284-320): (1) học trên ảnh
 nào** trong số các epoch đã train — nên nếu 1 bộ ảnh nào đó (như test) bị dùng làm val, model cuối cùng
 bị "chọn để hợp" với đúng bộ đó, đo lại trên nó sau này sẽ lạc quan hơn thực tế (không phải test mù).
 
-## 6. Còn nợ / bước tiếp theo
+## 6. KolektorSDD2 rep hoàn tất vòng 1 (2026-07-23) — xác nhận đúng hiện tượng ở mục 1
 
-- [ ] Chạy lại `chia_data_kolektorsdd2.py` (split mới) + `train_kolektorsdd2.py` — dùng để luyện tập
-      quy trình 3-way split đúng chuẩn trên data công khai trước khi áp dụng cho data công ty.
-- [ ] Viết script đánh giá riêng chạy trên `images/test`/`masks/test` (holdout thật) sau khi có
-      `best.pt` — chưa có script này.
+`chia_data_kolektorsdd2.py` (split đúng) + `train_kolektorsdd2.py` + script đánh giá riêng
+(`tu_hoc_deep/test_kolektorsdd2.py`, mới viết) đã chạy xong trên bộ `test/` holdout thật (1004 ảnh,
+chưa từng đụng lúc train/chọn best.pt). Kết quả: Recall cấp cục lỗi chỉ **87.4%** (sót 15/119 lỗi thật =
+12.6%), Precision 91.2% — nghĩa là **có cả sót lẫn nhầm cùng lúc**, đúng mẫu hình đã thấy ở model công
+ty trong mục 1 (không phải trùng hợp riêng của KolektorSDD2 — cùng nguyên nhân gốc: model chưa tổng quát
+hóa đủ tốt). Số liệu đầy đủ + đòn bẩy đang thử để tăng Recall: `HOC_kolektorsdd2_data_prep.md` mục 6-7.
+
+## 7. Còn nợ / bước tiếp theo
+
 - [ ] Áp dụng lại đúng nguyên tắc 3-way split (train/val/test) cho **data công ty thật** (500/100 ảnh)
       — hiện chưa rõ 500 ảnh có tách train/val đúng cách không (val có bị dùng để chọn best.pt rồi sau
       đó lại đánh giá "tổng quát hóa" trên chính val không?) — CẦN KIỂM TRA khi có model/log mới.
 - [ ] Thiết lập quy trình lưu checkpoint + log train (tránh lặp lại việc mất dữ liệu do đổi qua lại máy
       công ty/nhà).
-- [ ] Sau khi có model mới + đánh giá đúng cách: nếu vẫn overfit rõ, bàn hướng xử lý (data augmentation,
-      thêm data đa dạng, regularization...) — CHƯA bàn tới trong buổi 2026-07-21, để dành buổi sau.
+- [ ] Hướng xử lý overfitting/Recall thấp (data augmentation, thêm data đa dạng, regularization, đổi
+      loss/threshold) — đang thử trước trên KolektorSDD2 (rẻ, nhanh lặp) ở `HOC_kolektorsdd2_data_prep.md`
+      mục 6-7, đòn bẩy nào ăn sẽ áp dụng ngược lại cho data công ty.

@@ -35,7 +35,7 @@ _sys.path.insert(0, next(str(_p) for _p in _pl.Path(__file__).resolve().parents 
 from pathfix import P
 
 DEFAULT_DATA = Path(__file__).parent / "data_kolektorsdd2" / "dataset.yaml"
-DEFAULT_PROJECT = Path(__file__).parent / "results_260721"
+DEFAULT_PROJECT = Path(__file__).parent / "results_260723_2"
 
 
 def imread_unicode(path, flags=cv2.IMREAD_COLOR):
@@ -166,25 +166,37 @@ def evaluate(model, loader, device, num_classes):
 
 def main():
     ap = argparse.ArgumentParser()
+    # --- Data & kiến trúc ---
     ap.add_argument("--data", default=str(DEFAULT_DATA), help="Đường dẫn dataset.yaml")
-    ap.add_argument("--arch", default="Unet")
-    ap.add_argument("--encoder", default="resnet34")
-    ap.add_argument("--epochs", type=int, default=100)
-    ap.add_argument("--batch", type=int, default=8)
-    ap.add_argument("--lr", type=float, default=1e-3)
-    ap.add_argument("--workers", type=int, default=4)
-    ap.add_argument("--device", default="cuda:0")
-    ap.add_argument("--project", default=str(DEFAULT_PROJECT))
-    ap.add_argument("--name", default="kolektorsdd2_unet")
-    ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--arch", default="Unet")  # kiến trúc segmentation_models_pytorch: Unet / UnetPlusPlus / MAnet... (Bài 7)
+    ap.add_argument("--encoder", default="resnet34")  # backbone trích đặc trưng, đổi vd resnet50/efficientnet-b0 nếu cần mạnh hơn
+    # --- Vòng lặp train ---
+    ap.add_argument("--epochs", type=int, default=100)  # số vòng lặp qua hết train set
+    ap.add_argument("--batch", type=int, default=8)  # số ảnh/lần cập nhật trọng số, giới hạn bởi VRAM GPU
+    ap.add_argument("--lr", type=float, default=1e-3)  # learning rate KHỞI ĐẦU cho AdamW, CosineAnnealingLR sẽ tự giảm dần về 0 theo epoch
+    ap.add_argument("--workers", type=int, default=4)  # số tiến trình con đọc/tiền xử lý ảnh song song (DataLoader)
+    ap.add_argument("--device", default="cuda:0")  # "cuda:0" (GPU) hoặc "cpu" (chậm hơn nhiều, chỉ để test không có GPU)
+    # --- Nơi lưu kết quả ---
+    ap.add_argument("--project", default=str(DEFAULT_PROJECT))  # thư mục gốc chứa kết quả
+    ap.add_argument("--name", default="kolektorsdd2_unet")  # tên lần chạy -> kết quả lưu ở {project}/{name}/ (weights/, model_cfg.yaml)
+    ap.add_argument("--seed", type=int, default=42)  # cố định random (shuffle, augment, init trọng số) để chạy lại ra kết quả giống nhau
+    ap.add_argument("--resume", action="store_true")  # có cờ -> đọc {project}/{name}/weights/last.pt, train tiếp thay vì train lại từ đầu
+    # --- Chọn best.pt lúc train (Bài 6): mỗi epoch có val sẽ tính cả 3 chỉ số này,
+    # --best-metric chỉ quyết định DÙNG chỉ số nào để so "epoch này > best cũ chưa" rồi lưu best.pt.
+    #   iou_pixel     = IoU pixel lớp lỗi, GỘP toàn bộ ảnh val (cộng dồn tp/fp/fn rồi mới chia 1 lần)
+    #   recall_object = % cục lỗi (blob) GT bắt được, ưu tiên KHÔNG BỎ SÓT (chấp nhận báo nhầm nhiều hơn)
+    #   f1_object     = trung bình điều hoà Recall & Precision cục lỗi, cân bằng bỏ sót/báo nhầm (mặc định)
     ap.add_argument("--best-metric", default="f1_object",
                     choices=["iou_pixel", "recall_object", "f1_object"])
-    ap.add_argument("--loss", default="dice_ce", choices=["dice_ce", "ftl_focal"])
-    ap.add_argument("--tv-alpha", type=float, default=0.3)
-    ap.add_argument("--tv-beta", type=float, default=0.7)
-    ap.add_argument("--tv-gamma", type=float, default=1.333)
-    ap.add_argument("--focal-gamma", type=float, default=2.0)
+    # --- Hàm loss (Bài 5): dice_ce = CE có trọng số lớp + Dice (baseline, phạt FP=FN ngang nhau).
+    # ftl_focal = Tversky (α phạt FP=báo nhầm, β phạt FN=bỏ sót -> β cao thì recall cao) + FocalLoss
+    # (γ dồn sức vào pixel/lỗi khó, đã đúng nhãn nhưng xác suất còn thấp) -- 4 tham số dưới CHỈ có tác
+    # dụng khi --loss ftl_focal, bị bỏ qua nếu đang dùng dice_ce.
+    ap.add_argument("--loss", default="ftl_focal", choices=["dice_ce", "ftl_focal"])
+    ap.add_argument("--tv-alpha", type=float, default=0.3)  # Tversky α: phạt False Positive (báo nhầm chỗ không lỗi)
+    ap.add_argument("--tv-beta", type=float, default=1.5)  # Tversky β: phạt False Negative (bỏ sót lỗi thật) -- tăng số này để tăng recall
+    ap.add_argument("--tv-gamma", type=float, default=1.333)  # FocalTversky γ>1: dồn trọng số loss vào lỗi nhỏ/khó, giảm ảnh hưởng lỗi dễ đã đúng
+    ap.add_argument("--focal-gamma", type=float, default=2.0)  # Focal Loss γ: pixel đã đoán đúng+tự tin thì giảm mạnh đóng góp vào loss, dồn cho pixel còn sai
     args = ap.parse_args()
 
     random.seed(args.seed)
@@ -225,7 +237,7 @@ def main():
 
     # nền phạt nhẹ (0.2), mỗi lớp lỗi phạt nặng (2.0) -- xem Bài 3. Sinh tự động
     # theo num_classes thay vì hard-code, vì bài KolektorSDD2 chỉ có 2 lớp (nền+defect).
-    weights_list = [0.2] + [2.0] * (num_classes - 1)
+    weights_list = [0.2] + [4.0] * (num_classes - 1)
     defect_classes = list(range(1, num_classes))
 
     if args.loss == "dice_ce":
@@ -265,6 +277,14 @@ def main():
     best_loss = float("inf")
     print(f"[INFO] best.pt chọn theo tiêu chí: {args.best_metric}")
 
+    # Log 1 dòng/epoch, lưu CÙNG chỗ best.pt/last.pt (weights_dir) để đọc lại sau này
+    # (vd tìm epoch có [BEST] cuối cùng -> biết 100/150 epoch đã đủ hay còn thiếu, xem đường cong lr thực tế).
+    log_path = weights_dir / "train_log.txt"
+    if not log_path.exists():
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write("epoch\tlr\ttrain_loss\tdefect_iou\tobj_recall\tobj_precision\tobj_f1\t"
+                    f"best_metric[{args.best_metric}]\tis_best\n")
+
     if args.resume:
         if last_checkpoint_path.exists():
             print(f"[INFO] Đang hồi sinh từ: {last_checkpoint_path}")
@@ -297,6 +317,7 @@ def main():
             scaler.update()
             running += loss.item()
             pbar.set_postfix(loss=f"{loss.item():.4f}")
+        lr_now = optimizer.param_groups[0]["lr"]  # LR vừa dùng để train epoch này (lấy TRƯỚC khi scheduler.step() đổi sang giá trị của epoch sau)
         scheduler.step()
 
         avg_loss = running / max(1, len(train_loader))
@@ -314,16 +335,24 @@ def main():
                   f"CỤC LỖI: R={res['obj_recall']:.3f} P={res['obj_precision']:.3f} "
                   f"F1={res['obj_f1']:.3f} (bắt={otp} nhầm={ofp} sót={ofn}) | "
                   f"best_by[{args.best_metric}]={score:.4f}")
-            if score > best_score:
+            is_best = score > best_score
+            if is_best:
                 best_score = score
                 torch.save(model.state_dict(), weights_dir / "best.pt")
                 print(f"     [BEST] {args.best_metric} mới = {best_score:.4f} -> đã lưu best.pt")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"{epoch}\t{lr_now:.6f}\t{avg_loss:.4f}\t{res['defect_iou']:.4f}\t"
+                        f"{res['obj_recall']:.4f}\t{res['obj_precision']:.4f}\t{res['obj_f1']:.4f}\t"
+                        f"{score:.4f}\t{int(is_best)}\n")
         else:
             print(f"  -> loss={avg_loss:.4f}")
-            if avg_loss < best_loss:
+            is_best = avg_loss < best_loss
+            if is_best:
                 best_loss = avg_loss
                 torch.save(model.state_dict(), weights_dir / "best.pt")
                 print(f"     [BEST] train loss mới = {best_loss:.4f} -> đã lưu best.pt")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"{epoch}\t{lr_now:.6f}\t{avg_loss:.4f}\t-\t-\t-\t-\t{best_loss:.4f}\t{int(is_best)}\n")
 
         checkpoint_data = {
             "epoch": epoch,
