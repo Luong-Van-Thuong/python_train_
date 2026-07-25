@@ -3,6 +3,7 @@
 > Buổi học cùng Claude (2026-07-07). Bối cảnh: mình từ web/WinForm CRUD chuyển sang AI/vision.
 > Đã quen Cognex VisionPro (kéo-thả tool), giờ muốn TỰ DỰNG bằng OpenCV để không phụ thuộc license.
 > Gap thật của mình KHÔNG phải khái niệm — mà là **bản đồ dịch Cognex → OpenCV** và **tư duy hệ tọa độ**.
+> Mục 1-4 đã ✅ xong (bản đồ + tư duy cốt lõi); mục 5 còn 🟡 đang nợ. Trạng thái tổng: `TIEN_DO.md`.
 
 ---
 

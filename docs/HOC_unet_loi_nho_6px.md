@@ -1,13 +1,13 @@
 # 🎓 Ghi chú học: Bài toán segmentation lỗi nhỏ 6×6 px (UNet)
 
-> File tự học, ghi lại buổi học cùng Claude. Mỗi bài có phần lý thuyết + câu hỏi kiểm tra.
-> **Đang học tới:** Bài 8 XONG (đã tự bấm tay ra loss=0.30 đúng — hết "mù"). Đang vào Bài 9 (chạy ablation).
-> Ghi chú: user từng thấy "trả lời đúng lý thuyết mà chưa hiểu" → đã đổi cách dạy sang BẢNG SỐ CỤ THỂ + tự bấm máy. Cách này hiệu quả, tiếp tục dùng.
-> Có file bản đồ riêng: HOC_vision.md (2 nhánh OpenCV/DL + Playbook 3 ngày).
+> File tự học, ghi lại buổi học cùng Claude. Bài 1-8 đã ✅ xong — phần dưới đã RÚT GỌN còn công thức/số
+> liệu/kết luận cốt lõi, bỏ phần hỏi-đáp kiểm tra (đã thuộc, không cần ôn lại; lịch sử đầy đủ nằm trong
+> `git log` nếu cần tra lại nguyên văn). Bài 9 đang làm — giữ nguyên chi tiết vì còn đang dùng.
+> Có file bản đồ riêng: `HOC_vision.md`. Trạng thái tổng các mảng học: `TIEN_DO.md`.
 
 ---
 
-## 🗺️ Bản đồ học (9 bài)
+## 🗺️ Bản đồ học (9 bài) — ✅ xong · 🟡 đang làm
 
 **Phần A — Nền móng**
 - ✅ Bài 1: Segmentation là gì?
@@ -24,7 +24,7 @@
 
 **Phần D — Thực chiến**
 - ✅ Bài 8: Đọc `train_unet.py` từng dòng (đã tự bấm tay ra loss từ 2 bảng số)
-- ⬜ Bài 9: Chạy thí nghiệm so sánh (ablation), đọc kết quả
+- 🟡 Bài 9: Chạy thí nghiệm so sánh (ablation), đọc kết quả — ĐANG LÀM
 
 ---
 
@@ -41,189 +41,54 @@
 
 ---
 
-# 📘 Bài 1 — Segmentation là gì?
+## 📚 Recap Bài 1-8 (rút gọn — công thức/kết luận cốt lõi, đã thuộc)
 
-Máy "nhìn" ảnh có 3 mức, từ thô đến tinh:
+**Bài 1 — Segmentation:** 3 mức, từ thô đến tinh: Classification ("có lỗi không?") → Detection ("lỗi ở
+đâu?", khung box) → **Segmentation** ("pixel nào là lỗi?"). Dùng Segmentation vì cần đếm pixel để đo
+kích thước lỗi, và box không giữ được hình dạng thật của lỗi nhỏ.
 
-| Mức | Trả lời câu hỏi | Kết quả |
-|-----|-----------------|---------|
-| Classification | "Ảnh *có* lỗi không?" | 1 nhãn có/không |
-| Detection | "Lỗi *nằm đâu*?" | 1 khung box |
-| **Segmentation** | "*Pixel nào* là lỗi?" | bản đồ tô màu từng pixel |
+**Bài 2 — UNet chạy thế nào:** Encoder nén để *hiểu* (resnet34, mỗi bước /2: 512→256→128→64→32→16,
+tức 2⁵=32×) → Bottleneck (đáy U, 16×16, hiểu tổng thể nhưng mất vật nhỏ) → Decoder bung để *vẽ lại* mask
+→ **Skip connection** = đường tắt tuồn chi tiết còn nét từ tầng nông sang Decoder, cực quan trọng cho
+lỗi nhỏ. Lỗi 6px ở đáy chỉ còn 6/32 ≈ 0,19px → biến mất.
 
-Bài của mình dùng **Segmentation** (mức tinh nhất).
+**Bài 3 — Class imbalance (kẻ thù số 1):** đoán toàn nền vẫn đạt (262.144−36)/262.144 = 99,986% accuracy
+nhưng bỏ sót 100% lỗi — vì loss bị biển nền nhấn chìm 36px lỗi. Chống bằng: (1) class weights
+`[0.2, 2.0, 2.0, 1.5, 2.0]` (nền phạt nhẹ ×0.2, lỗi phạt nặng ×2.0), (2) đổi sang loss đo vùng (Dice/Tversky).
 
-**3 từ khóa:**
-- **Tile** = miếng ảnh vuông cắt ra để đưa vào model = **512×512 px**.
-- **Mask** = "đáp án tô màu" cùng kích thước tile, mỗi pixel mang **mã lớp**: `0`=nền, `1,2,3,4`=các loại lỗi.
-- **Class (lớp)** = loại lỗi. Code có 5 lớp (1 nền + 4 lỗi) → `weights_list` có 5 số.
+**Bài 4 — Vì sao downsample làm lỗi "bốc hơi":** 36px → ~9 → ~1.5 → <1 → 0,19px qua các tầng; dưới 1px,
+giá trị lỗi bị trung bình hoá với nền vây quanh → ở bottleneck không còn thấy lỗi. 3 hướng cứu: skip
+connection, kiến trúc nhiều skip hơn (Unet++/MAnet — Bài 7), loss ép giữ lỗi nhỏ (FocalTversky — Bài 5).
 
-**Việc của model:** nhận 1 tile (512×512×3) → đoán ra 1 mask (512×512, mỗi pixel điền số lớp).
+**Bài 5 — Hàm Loss (trái tim bài toán):** 3 chữ nền tảng — **TP** đúng ✅, **FP** báo nhầm 🚨,
+**FN** bỏ sót ❌ (nguy hiểm nhất, hàng lỗi lọt ra khách). `Dice = 2·TP/(2·TP+FP+FN)` (đo vùng, miễn nhiễm
+biển nền, nhưng phạt FP=FN ngang nhau). `Tversky = TP/(TP + α·FP + β·FN)`: α phạt báo nhầm, β phạt bỏ sót
+→ β cao = recall cao; α=β=0.5 → chính là Dice. `FocalTversky = (1−Tversky)^γ`, γ>1 dồn sức vào lỗi nhỏ
+còn tô trượt. Đề dùng: `ftl_loss(α=0.3, β=0.7, γ=1.333) + focal_loss(γ=2.0)` (`--loss ftl_focal`).
 
-### Câu hỏi & đáp án của mình
-1. *Lỗi 6×6 px trong mask trông thế nào, bao nhiêu pixel khác 0?* → **36 pixel** mang số khác 0 (nền=0, mỗi loại lỗi=1 số khác 0).
-2. *Vì sao dùng Segmentation chứ không Detection?* → vì khung box **không chính xác**: không giữ được hình dạng thật, vật 6px dễ bị model box bỏ qua, và cần **đếm pixel để đo kích thước** lỗi (quyết định đạt/không đạt).
-
-> Chốt: **Detection = "quanh đâu có lỗi"; Segmentation = "chính xác pixel nào là lỗi".**
-
----
-
-# 📗 Bài 2 — UNet chạy thế nào?
-
-UNet hình chữ **U**, 3 bộ phận + skip:
-
-```
-   Ảnh vào 512²                          Mask ra 512²
-        │                                     ▲
-   ┌────▼────┐  ENCODER (nén)   DECODER (bung) ┌──┴──┐
-   │  256²   │ ─────skip────────────────────► │ 256²│
-   │   128²  │ ───────skip──────────────────► │128² │
-   │    64²  │ ─────────skip────────────────► │ 64² │
-   │     32² │ ───────────skip──────────────► │32²  │
-   └─────16²─┘        BOTTLENECK (đáy U)   └─16²──┘
-```
-
-- **Encoder** = nén để *hiểu*. Mỗi bước thu nhỏ ảnh /2: 512→256→128→64→32→16 (5 bước). Việc thu nhỏ = **downsample**. `resnet34` chính là encoder này.
-- **Bottleneck** = đáy chữ U (16×16), hiểu tổng thể nhất — nhưng vật nhỏ dễ mất nhất.
-- **Decoder** = bung để *vẽ ra đáp án*. Phóng ảnh /2 ngược lại về 512, tô màu từng pixel.
-- **Skip connection** = đường tắt tuồn chi tiết còn nét từ Encoder (tầng nông 256²,128²) thẳng sang Decoder. **Cực quan trọng cho lỗi nhỏ.**
-
-### Câu hỏi & đáp án của mình
-1. *Encoder/Decoder làm gì?* → **Encoder nén để hiểu, Decoder bung để dựng lại mask 512×512.**
-2. *"Downsample 32×" số 32 ở đâu?* → **2⁵ = 32** (5 lần chia đôi).
-3. *Lỗi 6×6 ở đáy còn bao nhiêu?* → **6/32 ≈ 0,19 pixel** → chưa tới 1 pixel → biến mất.
-
----
-
-# 📙 Bài 3 — Mất cân bằng lớp (class imbalance)
-
-**Kẻ thù số 1**, sinh từ con số 36/262.144.
-
-**Vấn đề "lười mà điểm cao":** model gian lận đoán *toàn bộ là nền* vẫn đạt:
-```
-(262.144 − 36) / 262.144 = 99,986% pixel đúng
-```
-nhưng **bỏ sót 100% lỗi** → vô dụng. Vì hàm loss bị **biển nền nhấn chìm** 36 pixel lỗi.
-
-**2 cách chống (code dùng cả 2):**
-1. **Class weights** — `weights_list = [0.2, 2.0, 2.0, 1.5, 2.0]` (nền phạt nhẹ ×0.2, lỗi phạt nặng ×2.0). Trọng số gắn với LỚP, nhân vào sai sót tại pixel thuộc lớp đó → **bỏ sót lỗi đau gấp ~10 lần tô lố nền** → model "thà báo nhầm hơn bỏ sót" (= **recall**).
-2. **Đổi loại loss** — dùng Dice/Tversky đo *độ chồng lấn vùng*, không quan tâm nền to (Bài 5).
-
-### Câu hỏi & đáp án của mình
-1. *Vì sao đoán toàn nền vẫn 99,99% mà vô dụng?* → vì lỗi (kim cương) tuy quan trọng nhất nhưng chiếm tỉ lệ pixel cực nhỏ; accuracy cân theo *số lượng* nên bỏ qua nó.
-2. *Vì sao số đầu (0.2) nhỏ hơn?* → đó là trọng số phạt sai trên **nền** (để nhẹ), các số sau phạt sai trên **lỗi** (để nặng), mục tiêu ép model không lười bỏ sót lỗi.
-
----
-
-# 📕 Bài 4 — Vì sao downsample làm lỗi "bốc hơi"
-
-**Downsample = gộp ô rồi lấy trung bình.** Theo dõi lỗi 6×6 qua các bước:
-```
-512²: 36 pixel sáng rõ
- 256²: ~9 pixel, mờ đi
- 128²: ~1.5px, lẫn nền
-  64²: <1px, hòa tan vào nền
-  16²: 0,19px → không còn pixel riêng
-```
-
-**Vì sao "hòa tan" là chết:** khi lỗi <1 pixel, giá trị nó bị **lấy trung bình chung với nền vây quanh** → ra con số gần y hệt nền → model không phân biệt nổi → ở bottleneck **không còn thấy lỗi** → không tô lại được.
-
-> Nghịch lý UNet: Encoder càng nén sâu càng hiểu tốt vật to, nhưng càng bóp chết vật nhỏ.
-
-**3 hướng cứu (= 3 vũ khí Phần C):**
-1. **Skip connection** giữ chi tiết từ tầng nông (lỗi chưa bốc hơi) → Decoder.
-2. **Đổi kiến trúc** Unet++ / MAnet có nhiều đường skip dày hơn (Bài 7).
-3. **Loss** FocalTversky ép model cố giữ lỗi nhỏ (Bài 5).
-
-### Câu hỏi & đáp án của mình
-1. *Vì sao <1px = mất tín hiệu?* → giá trị lỗi bị trung bình chung với nền vây quanh → thành ~giá trị nền → không phân biệt được.
-2. *Bộ phận nào là "vị cứu tinh"?* → **Decoder + Skip**, vì skip tuồn thẳng chi tiết từ tầng nông còn nét (256²,128²) sang Decoder, né được cái đáy U nơi lỗi bị bóp chết.
-
----
-
-# 📘 Bài 5 — Hàm Loss (trái tim của việc dạy lỗi nhỏ)
-
-**Loss = thước đo model sai bao nhiêu. Chọn loss = chọn model quan tâm điều gì.** Có 2 trường phái.
-
-## Trường phái 1 — "Đếm từng pixel"
-- **CrossEntropy (CE):** duyệt từng pixel, sai thì phạt. 👎 bị nền nhấn chìm (chỉ đỡ nhờ class weights). Đây là nửa của đề cũ `dice_ce`.
-- **Focal (nâng cấp CE):** vẫn đếm pixel nhưng **pixel dễ giảm phạt, dồn sức pixel khó**. Núm `--focal-gamma` (=2.0): càng cao càng bỏ pixel dễ. Lỗi nhỏ là pixel khó → được ưu ái.
-
-## Trường phái 2 — "Đo độ chồng lấn vùng" (miễn nhiễm biển nền)
-**3 chữ nền tảng:**
-- **TP** = pixel lỗi tô **đúng** ✅
-- **FP** = nền bị tô nhầm thành lỗi = **báo nhầm** 🚨
-- **FN** = lỗi bị **bỏ sót** (tô thành nền) ❌ ← kẻ thù tệ nhất
-
-**Dice Loss:** `Dice = 2·TP / (2·TP + FP + FN)` — càng trùng càng gần 1, nền to mấy cũng kệ. Nửa còn lại của đề cũ (`classes=defect_classes` bỏ nền).
-👎 Nhược: **phạt FP và FN ngang nhau**, nhưng ta cần phạt bỏ sót (FN) nặng hơn.
-
-**Tversky (= Dice có núm α, β):** `Tversky = TP / (TP + α·FP + β·FN)`
-
-| Núm | Phạt | Tăng lên thì… |
-|-----|------|---------------|
-| **α** (`--tv-alpha`) | FP = báo nhầm | bớt báo nhầm → precision ↑ |
-| **β** (`--tv-beta`) | FN = bỏ sót | bớt bỏ sót → **recall ↑** |
-
-- α = β = 0.5 → **chính là Dice**.
-- Code: α=0.3, β=0.7 → β>α → **nghiêng về recall** (thà báo nhầm hơn bỏ sót).
-
-**FocalTversky:** `(1 − Tversky)^γ` — núm **γ** (`--tv-gamma`=1.333): γ>1 → **dồn sức vào cục lỗi bé còn tô trượt** (Focal ở cấp độ vùng).
-
-## Ghép lại — "đề mới" `--loss ftl_focal`
-```python
-ftl_loss   = TverskyLoss(alpha=0.3, beta=0.7, gamma=1.333)  # đo vùng, nghiêng recall
-focal_loss = FocalLoss(gamma=2.0)                            # đếm pixel, dồn ca khó
-criterion  = ftl_loss + focal_loss
-```
-
-### Bảng tóm tắt cả bài
 | Loss | Trường phái | Chống nền nhấn chìm? | Núm chỉnh recall? |
 |------|-------------|:---:|:---:|
 | CrossEntropy | đếm pixel | ❌ (chỉ nhờ weights) | ❌ |
-| Focal | đếm pixel | 一 phần | ❌ (chỉ dồn ca khó) |
+| Focal | đếm pixel | 一 phần | ❌ |
 | Dice | đo vùng | ✅ | ❌ (FP=FN) |
-| **Tversky** | đo vùng | ✅ | ✅ α, β |
-| **FocalTversky** | đo vùng | ✅ | ✅ α,β + γ |
+| Tversky | đo vùng | ✅ | ✅ α, β |
+| FocalTversky | đo vùng | ✅ | ✅ α,β + γ |
 
-### ✅ Câu hỏi Bài 5 — ĐÃ CHẤM
-1. **FP vs FN** — đáp án: **FN = False Negative = BỎ SÓT** (có lỗi thật mà báo "không") ← *nguy hiểm nhất* (hàng lỗi lọt ra khách). **FP = False Positive = BÁO NHẦM** (không lỗi mà báo "có") ← đỡ hơn, chỉ tốn công soi lại.
-   - *Mẹo nhớ:* nhìn chữ cuối — **N**egative = model nói "Không"; False-Negative = nói "Không" mà sai = thực ra CÓ = bỏ sót. **P**ositive = model nói "Có"; False-Positive = nói "Có" mà sai = báo nhầm.
-   - *Lần này mình lỡ dán nhầm nhãn FP↔FN nhưng hiểu đúng bản chất (bỏ sót nguy hiểm nhất ✅).*
-2. **Vặn β LÊN cao** ✅ — β phạt FN (bỏ sót); phạt càng đau → recall ↑. (Trả lời đúng.)
-3. **α = β = 0,5 → Dice** (thế số vào Tversky, nhân 2 tử-mẫu ra đúng công thức Dice). Tversky = "Dice có thêm 2 núm α,β"; vặn về giữa thì thành Dice. (*Mình đoán "anomaly detection" — chưa đúng, đó là hướng bài toán khác.*)
+**Bài 6 — Metric & chọn best.pt:** Loss = máy đọc lúc học (mượt/đạo hàm); Metric = người đọc để chọn
+`best.pt` (chỉ cần đếm). IoU per-pixel BẤT CÔNG với vật nhỏ: lệch 2px trên lỗi 36px → IoU ~0,38, cùng
+lệch đó trên vật 200×200 → IoU ~0,98; đồng thời nền 99,98% "hoàn hảo" kéo điểm trung bình lên dù bỏ sót
+cả cục lỗi. → best.pt theo IoU dễ chọn nhầm model "chơi an toàn, né lỗi nhỏ". Giải pháp: chấm theo
+**blob/object-level** — cục lỗi chạm ≥1px = TP object, không chạm = FN, bịa ở nền = FP.
+**Recall = bắt được / tổng cục thật** là chỉ số quan trọng nhất cho bài toán này.
 
----
+**Bài 7 — Kiến trúc:** Skip = cứu tinh lỗi nhỏ → càng nhiều/dày càng tốt. Unet (1 skip/tầng) < Unet++
+(skip lồng nhau, nhạy vật nhỏ) < MAnet (+attention dồn nhìn vào cụm lỗi) — đánh đổi bằng nặng/chậm/tốn
+RAM hơn. backbone = encoder = resnet34 = nửa trái chữ U (3 tên, cùng 1 thứ). Đổi arch không chắc thắng →
+phải giữ baseline + chạy ablation, đo bằng Recall object-level, không tin "nghe nói xịn".
 
-# ✅ Bài 6 — Thước đo (metric) & chọn best.pt
-
-**Loss vs Metric:** Loss = thầy la học sinh *trong lúc học* (MÁY đọc để tự chỉnh, cần mượt/đạo hàm). Metric = bảng điểm *cuối kỳ* (NGƯỜI đọc, dùng để quyết lưu `best.pt` của epoch nào; chỉ cần đếm).
-
-**IoU per-pixel lừa mình 2 cách với lỗi 6px:**
-1. *Lệch nhẹ rớt điểm thảm:* lỗi 36px lệch 2px → IoU ~0,38; cùng lệch đó trên vật 200×200 → IoU ~0,98. Vật càng bé IoU phạt càng nặng (vì vài px lệch = % lớn). Người kiểm hàng chỉ hỏi "có trúng cục lỗi không" → thấy bất công.
-2. *Trung bình dìm điểm:* nền 99,98% → điểm nền hoàn hảo kéo trung bình lên cao dù bỏ sót cả cục lỗi (biển nền nhấn chìm — lặp lại Bài 3, lần này ở khâu chấm).
-→ best.pt theo IoU có xu hướng lưu model "chơi an toàn, tô ít, né lỗi nhỏ" — thứ KHÔNG muốn.
-
-**Lời giải — chấm theo "cục lỗi" (blob / object-level):**
-- Blob = 1 cục pixel lỗi dính liền (1 con lỗi 6×6 = 1 blob).
-- Model chạm ≥1px vào cục thật → TP object; cục thật không chạm → FN (bỏ sót); bịa cục ở nền → FP (báo nhầm).
-- **Recall = bắt được / tổng cục thật** ("bỏ sót bao nhiêu?") ← QUAN TRỌNG NHẤT với bài này (bỏ sót = hàng lỗi ra khách).
-- Precision = báo đúng / tổng báo ("báo nhầm nhiều không?"). F1 = cân bằng 2 cái.
-→ Nên chọn best.pt theo **Recall/F1 object-level**, không phải IoU per-pixel.
-
-**Nối Bài 5:** núm β (`--tv-beta`) trong Loss DẠY model đừng bỏ sót → Metric Recall CHẤM xem nó có thật sự không bỏ sót. Cùng nhắm 1 mục tiêu.
-
-### ✅ Câu hỏi Bài 6 — ĐÃ CHẤM
-1. Loss = MÁY đọc tự chỉnh (mượt); Metric = NGƯỜI đọc, chọn best.pt (đếm). *(User ví von thầy-la/bảng-điểm — đúng, bổ sung "ai đọc".)*
-2. IoU chấm THẤP; người kiểm hàng thấy bất công — *vì cục lỗi quá NHỎ nên vài px lệch = % lớn; 2 bên hỏi 2 câu khác nhau (trùng khít % vs có trúng cục không).* ✅
-3. **Recall** quan trọng nhất = bắt được / tổng lỗi thật → recall thấp = bỏ sót nhiều = thảm họa. ✅
+**Bài 8 — Đọc `train_unet.py`:** tự bấm tay ra loss=0.30 đúng từ 2 bảng số → hết "mù" đọc code train.
 
 ---
-
-# ✅ Bài 7 — Kiến trúc (Unet vs Unet++/MAnet)
-- Skip là vị cứu tinh lỗi nhỏ → càng nhiều/dày skip càng cứu tốt. Unet = 1 đường skip thô/tầng; Unet++ = skip lồng nhau nhiều trạm (nhạy vật nhỏ); MAnet = thêm attention (dồn ánh nhìn vào cụm lỗi, dẹp nền). Giá: nặng/chậm/tốn RAM hơn.
-- **backbone = encoder = resnet34 = nửa trái chữ U** (3 chữ cùng 1 thứ — user từng gợn chữ này, đã gỡ).
-- Đổi arch KHÔNG chắc thắng → phải giữ Unet baseline + chạy ablation, đo bằng Recall object-level. "Nghe nói xịn" không phải bằng chứng. (Trong code chỉ là cờ `--arch`.)
 
 # 🟡 Bài 9 — Chạy ablation (ĐANG HỌC — đã chạy thật, 2026-07-07)
 
@@ -252,11 +117,22 @@ A vs B = loss có ăn không; B vs C = arch có ăn thêm không.
 
 **Báo cáo cho sếp = bảng "cỡ mm → recall"**: gom ảnh test theo cỡ lỗi (1/2/3mm), đếm bỏ sót mỗi cỡ → chỗ recall tụt mạnh = **giới hạn phát hiện** ("bắt tốt từ X mm trở lên").
 
-**2 câu HỎI USER còn treo (hỏi đầu buổi sau):**
-1. Data đã sẵn chưa? (`dataset.yaml` dòng 26 train_unet.py — ảnh + mask thật đã có chưa, hay phải lo khâu cắt tile/gán nhãn trước?)
-2. Buổi sau muốn CHẠY THẬT (kick off exp_A trong WSL, đọc log cùng nhau) hay chỉ cần hiểu cách chạy?
+✅ Cập nhật 2026-07-19: đã kiểm tra lại `train_unet.py` — việc nâng best.pt sang Recall/F1 object-level (Bài 6)
+ĐÃ LÀM XONG, không còn nợ nữa. Code có cờ `--best-metric` (`iou_pixel` | `recall_object` | `f1_object`,
+mặc định `f1_object`). Ghi chú cũ ở đây (dòng 266 chọn IoU) đã lỗi thời, đã xoá.
 
-⚠️ Nhắc lại từ Bài 6: code hiện chọn best.pt theo IoU per-pixel (dòng 266) — CHƯA nâng cấp sang Recall object-level. Đây là việc code còn nợ.
+### 📚 Tài liệu tham khảo cho gói ablation này
+(gộp từ `NOTES_unet_small_defect.md` cũ — đã xoá vì nội dung phân tích của nó chính là kế hoạch exp_A/B/C ở trên, không cần giữ 2 bản)
+- **Loss cho imbalance:** Tversky Loss (2017), Focal Tversky Loss (2018), Focal Loss / RetinaNet (2017).
+- **Vì sao object nhỏ khó:** downsampling stride làm mất phân giải không gian, vật < stride tầng sâu thì
+  mất tín hiệu. Tra cứu thêm: "small object segmentation", "receptive field vs object size",
+  "output stride / dilated convolution".
+- **Metric object-level:** connected-components / blob matching (đúng thứ Bài 6 đang dùng).
+- **Kiến trúc giữ vật thể nhỏ ngoài Unet++/MAnet:** HRNet (giữ high-resolution suốt mạng), feature
+  pyramid, giảm `encoder_depth`.
+- Điểm phụ đã chốt (không cần thí nghiệm lại): augmentation flip/rot90/brightness AN TOÀN cho lỗi nhỏ
+  (rot90 lossless); KHÔNG dùng scale-down/elastic/rotate góc lẻ (phá lỗi 6px); cân nhắc
+  `WeightedRandomSampler` nếu `bg_ratio` cao làm loãng tín hiệu dương.
 
 ---
 

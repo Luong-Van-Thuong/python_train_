@@ -1,0 +1,22 @@
+BỎ SÓT CẢ CON HÀNG (hàng lỗi thật, model báo OK) -- 13 hàng
+  20159.png
+  20228.png
+  20236.png
+  20259.png
+  20281.png
+  20544.png
+  20640.png
+  20667.png
+  20744.png
+  20772.png
+  20801.png
+  20816.png
+  20969.png
+
+BÁO NHẦM CẢ CON HÀNG (hàng tốt thật, model báo NG) -- 6 hàng
+  20057.png
+  20091.png
+  20151.png
+  20358.png
+  20444.png
+  20719.png
