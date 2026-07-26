@@ -20,7 +20,8 @@ from pathfix import P
 # ==============================================================================
 # CONFIGURATION ZONE - ÔNG THAY ĐỔI ĐƯỜNG DẪN TEST TẠI ĐÂY
 # ==============================================================================
-# Biến chứa đường dẫn ảnh test riêng, dễ dàng thay đổi khi debug trong WSL2
+# B
+# iến chứa đường dẫn ảnh test riêng, dễ dàng thay đổi khi debug trong WSL2
 DEBUG_SOURCE = P("/mnt/d/Images_/SIBV/A26/test/")
 
 DEFAULT_WEIGHTS = "sibv/a26/results/260622/defect_seg2/weights/best.pt"
